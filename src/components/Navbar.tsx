@@ -23,7 +23,20 @@ export default function Navbar() {
   useEffect(() => {
     // Detect if we are running inside an iframe
     if (window !== window.top) {
-      setIsEmbedded(true);
+      // If we don't have access to ancestor origins (cross-domain), 
+      // document.referrer usually holds the parent URL.
+      const referrer = document.referrer;
+      
+      // If the referrer contains our known Vercel app or melody app string,
+      // it means we are explicitly embedded in MelodySync.
+      // E.g., check against import.meta.env.VITE_PARENT_ORIGIN or a default keyword
+      const parentEnv = import.meta.env.VITE_PARENT_ORIGIN || 'melodysync';
+      
+      if (referrer && referrer.includes(parentEnv.replace('https://', ''))) {
+        setIsEmbedded(true);
+      }
+      // If there is no referrer (sometimes blocked by privacy) or it behaves
+      // as AI Studio preview, we will assume it is NOT the explicit MelodySync embed.
     }
   }, []);
 

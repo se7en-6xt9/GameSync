@@ -30,7 +30,12 @@ export default function Game() {
 
   useEffect(() => {
     if (window !== window.top) {
-      setIsEmbedded(true);
+      const referrer = document.referrer;
+      const parentEnv = import.meta.env.VITE_PARENT_ORIGIN || 'melodysync';
+      
+      if (referrer && referrer.includes(parentEnv.replace('https://', ''))) {
+        setIsEmbedded(true);
+      }
     }
     
     if (mode === 'online') {
