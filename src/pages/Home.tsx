@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { GamepadIcon, Users, Cpu, Globe } from 'lucide-react';
 import { cn } from '../components/Navbar';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const GAME_MODES = [
   {
@@ -34,13 +34,23 @@ const GAME_MODES = [
 export default function Home() {
   const navigate = useNavigate();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
+  useEffect(() => {
+    if (window !== window.top) {
+      setIsEmbedded(true);
+    }
+  }, []);
 
   const startMatch = (modeId: string) => {
     navigate(`/game/${modeId}`);
   };
 
   return (
-    <div className="pt-32 pb-16 px-4 max-w-6xl mx-auto min-h-screen flex flex-col items-center">
+    <div className={cn(
+      "px-4 max-w-6xl mx-auto min-h-screen flex flex-col items-center",
+      isEmbedded ? "pt-12 pb-8" : "pt-32 pb-16"
+    )}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

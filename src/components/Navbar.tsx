@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useUserStore } from '../store/userStore';
@@ -17,9 +18,23 @@ const TABS = [
 export default function Navbar() {
   const location = useLocation();
   const username = useUserStore((state) => state.username);
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
+  useEffect(() => {
+    // Detect if we are running inside an iframe
+    if (window !== window.top) {
+      setIsEmbedded(true);
+    }
+  }, []);
+
+  // Don't render the Navbar at all if inside an iframe (like MelodySync)
+  if (isEmbedded) {
+    return null;
+  }
 
   return (
     <div className="fixed top-6 left-0 right-0 z-50 flex justify-center px-4">
+
       <nav className="flex items-center gap-2 p-2 bg-[var(--color-glass-surface)]/80 backdrop-blur-xl border border-[var(--color-glass-border)] rounded-full shadow-2xl">
         {TABS.map((tab) => {
           const isActive = location.pathname === tab.path;

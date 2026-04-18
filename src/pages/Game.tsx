@@ -26,18 +26,19 @@ export default function Game() {
   const [isWaiting, setIsWaiting] = useState(false);
   const [mySymbol, setMySymbol] = useState<'X' | 'O'>('X');
   const [opponentName, setOpponentName] = useState<string>('Opponent');
+  const [isEmbedded, setIsEmbedded] = useState(false);
 
   useEffect(() => {
+    if (window !== window.top) {
+      setIsEmbedded(true);
+    }
+    
     if (mode === 'online') {
       startOnlineMatch();
     } else if (mode === 'local' || mode === 'computer') {
       resetBoard();
       setActiveGameId(null);
     }
-    // Cleanup if leaving
-    return () => {
-      // Could handle leaving match logic if needed
-    };
   }, [mode]);
 
   const startOnlineMatch = async () => {
@@ -269,7 +270,10 @@ export default function Game() {
   };
 
   return (
-    <div className="pt-24 pb-8 px-4 max-w-7xl mx-auto min-h-screen flex flex-col md:flex-row gap-8">
+    <div className={cn(
+      "px-4 max-w-7xl mx-auto min-h-screen flex flex-col md:flex-row gap-8",
+      isEmbedded ? "pt-12 pb-8" : "pt-24 pb-8"
+    )}>
       <div className="flex-1 flex flex-col">
         <button
           onClick={() => navigate('/')}
