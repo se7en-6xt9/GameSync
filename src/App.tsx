@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import IframeMessageHandler from './components/IframeMessageHandler';
 import Navbar from './components/Navbar';
+import NamePopup from './components/NamePopup';
 import Home from './pages/Home';
+import TicTacToeLobby from './pages/TicTacToeLobby';
 import Game from './pages/Game';
 import Profile from './pages/Profile';
 
@@ -15,9 +17,11 @@ export default function App() {
       <IframeMessageHandler />
       
       <Navbar />
+      <NamePopup />
       
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/tictactoe" element={<TicTacToeLobby />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/game/:mode" element={<Game />} />
       </Routes>
