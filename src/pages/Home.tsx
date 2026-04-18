@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { useUserStore } from '../store/userStore';
-import { Gamepad2, Play, Users, Clock, Trash2 } from 'lucide-react';
+import { Gamepad2, Play, Users, Clock, Trash2, KeyRound, ArrowRight, X } from 'lucide-react';
 import { cn } from '../components/Navbar';
 
 export default function Home() {
@@ -12,6 +12,8 @@ export default function Home() {
   const { userId, username, setNamePopupOpen, setActiveGameId } = useUserStore();
   const [recentGames, setRecentGames] = useState<any[]>([]);
   const [isEmbedded, setIsEmbedded] = useState(false);
+  const [showEmbeddedJoinModal, setShowEmbeddedJoinModal] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
 
   useEffect(() => {
     if (window !== window.top) {
@@ -87,6 +89,22 @@ export default function Home() {
     }
   };
 
+  const handleJoinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim()) {
+       setShowEmbeddedJoinModal(false);
+       setNamePopupOpen(true);
+       return;
+    }
+    const code = joinCode.trim();
+    if (code.length !== 4) return;
+    
+    // Auto Navigate to online handler with Code in searchParams
+    navigate(`/game/online?roomId=${code}`);
+    setShowEmbeddedJoinModal(false);
+    setJoinCode('');
+  };
+
   return (
     <div className={cn(
       "px-4 max-w-7xl mx-auto min-h-screen flex flex-col",
@@ -145,6 +163,29 @@ export default function Home() {
         </div>
       )}
 
+      {/* Embedded Specific "Join Room" Section (Shown only in IFRAME because Navbar hides Join Button) */}
+      {isEmbedded && (
+        <div className="mb-8 w-full max-w-lg bg-[var(--color-glass-surface)] border border-[var(--color-glass-border)] rounded-2xl p-5 shadow-[0_0_20px_rgba(59,130,246,0.15)] flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="flex flex-col">
+              <h3 className="text-lg font-bold text-blue-300 flex items-center gap-2">
+                 Got a Room Code?
+              </h3>
+              <p className="text-sm text-purple-200 mt-1">Jump instantly into a multiplayer match.</p>
+            </div>
+            <button
+               onClick={() => {
+                 // Trigger exactly the same flow that Nav uses, can simulate it here or dispatch a global modal, 
+                 // It's cleaner to handle it locally by capturing a prompt, or dispatching an event.
+                 // Actually relying on window.prompt is ugliest. Let's make an in-place input here!
+                 setShowEmbeddedJoinModal(true);
+               }}
+               className="w-full md:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded-full flex items-center justify-center transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)] whitespace-nowrap"
+            >
+               Join Game
+            </button>
+        </div>
+      )}
+
       {/* All Games Grid */}
       <div className="flex items-center gap-2 mb-6 mt-4">
         <Gamepad2 className="w-6 h-6 text-fuchsia-400" />
@@ -195,6 +236,51 @@ export default function Home() {
         </div>
 
       </div>
+
+      <AnimatePresence>
+        {isEmbedded && showEmbeddedJoinModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-[var(--color-glass-surface)] border border-[var(--color-glass-border)] p-6 rounded-3xl w-full max-w-sm shadow-[0_0_30px_rgba(59,130,246,0.3)]"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-white">
+                  <KeyRound className="w-5 h-5 text-blue-400" /> Join Room
+                </h3>
+                <button onClick={() => setShowEmbeddedJoinModal(false)} className="text-gray-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={handleJoinSubmit} className="flex flex-col gap-4">
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Paste 4-Digit ID..."
+                  className="w-full px-4 py-3 bg-black/40 border-2 border-blue-500/30 focus:border-blue-500 focus:outline-none rounded-xl text-center font-mono font-bold text-lg text-white placeholder-gray-500 transition-colors"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={joinCode.length !== 4}
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/25"
+                >
+                  Join Match <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

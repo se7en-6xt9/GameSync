@@ -621,7 +621,23 @@ export default function Game() {
                <div className="absolute inset-0 bg-purple-900/80 backdrop-blur-md flex flex-col items-center justify-center rounded-xl z-20">
                    <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
                    <p className="text-xl sm:text-2xl font-bold text-white text-center px-4">Waiting for opponent...</p>
-                   <p className="text-xs sm:text-sm text-purple-200 mt-2 text-center w-[80%]">Share the Room Code to invite a friend.</p>
+                   {mode === 'online' && gameId && (
+                     <div className="mt-4 flex flex-col items-center gap-2">
+                       <p className="text-xs sm:text-sm text-purple-200">Share this Room Code:</p>
+                       <div className="flex items-center gap-2 bg-black/40 rounded-lg px-4 py-2 border border-purple-500/30">
+                          <span className="font-mono text-xl sm:text-2xl font-black tracking-widest text-white">{gameId}</span>
+                          <button 
+                            onClick={handleCopyCode}
+                            disabled={tooltipCopied}
+                            className="ml-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-md transition-colors text-white cursor-pointer flex items-center gap-1 shadow-lg pointer-events-auto"
+                          >
+                            {tooltipCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            <span className="text-sm font-bold">{tooltipCopied ? 'Copied' : 'Copy'}</span>
+                          </button>
+                       </div>
+                     </div>
+                   )}
+                   <p className="text-xs sm:text-sm text-purple-200/50 mt-6 text-center w-[80%]">Or wait for someone to join randomly.</p>
                </div>
             )}
           </div>
