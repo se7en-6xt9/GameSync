@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A player profile in the game system.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "status": { "type": "string", "enum": ["online", "offline"] },
+        "lastSeen": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "status"]
+    },
+    "GameSession": {
+      "title": "Game Session",
+      "description": "A Tic-Tac-Toe game session, supporting Online PvP.",
+      "type": "object",
+      "properties": {
+        "gameId": { "type": "string" },
+        "mode": { "type": "string", "enum": ["pvp-online"] },
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "playerX": { "type": "string" },
+        "playerO": { "type": "string" },
+        "board": { "type": "array", "items": { "type": "string" } },
+        "currentTurn": { "type": "string", "enum": ["X", "O"] },
+        "winner": { "type": "string" },
+        "scores": {
+          "type": "object",
+          "properties": {
+            "X": { "type": "integer" },
+            "O": { "type": "integer" }
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["mode", "status", "board", "currentTurn", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A message in a game session's chat.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "senderName", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Player profiles"
+    },
+    "games/{gameId}": {
+      "schema": { "$ref": "#/entities/GameSession" },
+      "description": "Active and past game sessions"
+    },
+    "games/{gameId}/chat/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Chat messages scoped to a specific game session"
+    }
+  }
+}
