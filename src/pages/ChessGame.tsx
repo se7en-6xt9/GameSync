@@ -80,6 +80,7 @@ export default function ChessGame() {
   // Game Customizations
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
   const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
+  const [showGameOverModal, setShowGameOverModal] = useState(true);
 
   // Messenger logic for Online Mode
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -555,6 +556,7 @@ export default function ChessGame() {
         setHistory(data.history || []);
         
         if (newGame.isGameOver()) {
+            setShowGameOverModal(true);
             let winText = "Draw!";
             if (newGame.isCheckmate()) {
                 winText = `${newGame.turn() === 'w' ? 'Black' : 'White'} wins by Checkmate!`;
@@ -767,6 +769,7 @@ export default function ChessGame() {
   const resetBoard = async () => {
     if (!gameId) return;
     try {
+      setShowGameOverModal(true);
       if (mode === 'computer') setIsGameStarted(false);
       await updateDoc(doc(db, 'games', gameId), {
         fen: 'start',
@@ -911,8 +914,48 @@ export default function ChessGame() {
           "w-full max-w-[600px] flex flex-col items-center justify-center p-0 sm:p-6 rounded-none sm:rounded-[2rem] relative shadow-2xl backdrop-blur-xl border-x-0 sm:border border-[var(--color-glass-border)] shrink-0",
            boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
         )}>
-          
-          {/* Header specific to Chess */}
+            
+            <AnimatePresence>
+              {isGameOver && showGameOverModal && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-xl backdrop-blur-sm z-40"
+                >
+                  <div className="mb-4 sm:mb-6 px-6 sm:px-8 py-3 sm:py-4 rounded-full bg-white text-blue-900 font-extrabold text-xl sm:text-2xl md:text-3xl shadow-[0_0_30px_rgba(255,255,255,0.8)] text-center w-[90%] break-words">
+                    {statusText}
+                  </div>
+                  <div className="flex flex-col gap-3 w-[80%] max-w-[300px]">
+                    <button
+                      onClick={resetBoard}
+                      className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold text-lg transition-colors shadow-lg hover:shadow-blue-500/50 focus:outline-none pointer-events-auto w-full"
+                    >
+                      <RotateCcw className="w-5 h-5" /> Play Again
+                    </button>
+                    <button
+                      onClick={() => setShowGameOverModal(false)}
+                      className="flex items-center justify-center gap-2 px-6 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-full font-medium text-sm transition-colors backdrop-blur-sm pointer-events-auto w-full"
+                    >
+                      View Board
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {isGameOver && !showGameOverModal && (
+               <motion.button
+                 initial={{ opacity: 0, scale: 0.8 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 onClick={() => setShowGameOverModal(true)}
+                 className="absolute bottom-4 right-4 z-50 p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl border-2 border-white/30 pointer-events-auto"
+                 title="Show Results"
+               >
+                 <RotateCcw className="w-6 h-6 rotate-90" />
+               </motion.button>
+            )}
+
+            {/* Header specific to Chess */}
           <div className="w-full flex justify-between items-center mb-2 px-4 sm:px-1">
              <div className="text-white font-bold">{opponentName}</div>
              <div className={cn("px-3 py-1 rounded-full text-xs font-bold", game.turn() === 'b' ? 'bg-blue-500 text-white' : 'bg-black/50 text-gray-400')}>
@@ -997,13 +1040,10 @@ export default function ChessGame() {
                  })()}
                </div>
              </div>
-             {/* DEBUG: Remove later */}
-             <div className="absolute top-0 right-0 bg-black/80 text-[10px] text-green-400 p-1 z-50 pointer-events-none">
-                Wait: {String(isWaiting)} | Turn: {game.turn()} | Me: {mySymbol}
-             </div>
+             {/* Removed Debug Info */}
             
             <AnimatePresence>
-              {isGameOver && (
+              {isGameOver && showGameOverModal && (
                 <motion.div
                   initial={{ opacity: 0, y: 20, scale: 0.8 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1012,15 +1052,35 @@ export default function ChessGame() {
                   <div className="mb-4 sm:mb-6 px-6 sm:px-8 py-3 sm:py-4 rounded-full bg-white text-blue-900 font-extrabold text-xl sm:text-2xl md:text-3xl shadow-[0_0_30px_rgba(255,255,255,0.8)] text-center w-[90%] break-words">
                     {statusText}
                   </div>
-                  <button
-                    onClick={resetBoard}
-                    className="flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold text-lg sm:text-xl transition-colors shadow-lg hover:shadow-blue-500/50 focus:outline-none pointer-events-auto"
-                  >
-                    <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" /> Play Again
-                  </button>
+                  <div className="flex flex-col gap-3 w-[80%] max-w-[280px]">
+                    <button
+                      onClick={resetBoard}
+                      className="flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold text-lg transition-colors shadow-lg hover:shadow-blue-500/50 focus:outline-none pointer-events-auto"
+                    >
+                      <RotateCcw className="w-5 h-5" /> Play Again
+                    </button>
+                    <button
+                      onClick={() => setShowGameOverModal(false)}
+                      className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-full font-medium text-sm transition-colors backdrop-blur-sm pointer-events-auto"
+                    >
+                       View Board
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {isGameOver && !showGameOverModal && (
+               <motion.button
+                 initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                 animate={{ opacity: 1, scale: 1, y: 0 }}
+                 onClick={() => setShowGameOverModal(true)}
+                 className="absolute bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-2 bg-blue-600/90 hover:bg-blue-600 text-white rounded-full shadow-2xl border border-white/30 pointer-events-auto backdrop-blur-sm"
+               >
+                 <RotateCcw className="w-4 h-4 rotate-90" />
+                 <span className="text-xs font-bold uppercase tracking-wider">Results</span>
+               </motion.button>
+            )}
 
             {isWaiting && (
                <div className="absolute inset-0 bg-blue-900/80 backdrop-blur-md flex flex-col items-center justify-center rounded-xl z-40">
