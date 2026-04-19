@@ -553,7 +553,7 @@ export default function Game() {
     <div 
       ref={constraintsRef}
       className={cn(
-        "w-full max-w-screen-2xl mx-auto h-[100dvh] flex flex-col items-center justify-center gap-2 p-2 sm:p-4 overflow-hidden",
+        "w-full max-w-screen-2xl mx-auto h-[100dvh] flex flex-col items-center justify-center gap-2 p-0 sm:p-4 overflow-hidden",
         isEmbedded ? "pt-12" : "pt-24", themeConfig.font
       )}
     >
@@ -600,13 +600,13 @@ export default function Game() {
 
         {/* Maximize the Board UI Container */}
         <div className={cn(
-          "w-full max-w-[600px] flex flex-col items-center justify-center p-3 sm:p-6 rounded-3xl sm:rounded-[2rem] relative shadow-2xl backdrop-blur-xl border border-[var(--color-glass-border)] shrink-0",
+          "w-full max-w-[600px] flex flex-col items-center justify-center p-0 sm:p-6 rounded-none sm:rounded-[2rem] relative shadow-2xl backdrop-blur-xl border-x-0 sm:border border-[var(--color-glass-border)] shrink-0",
            boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
         )}>
           
-          <div className="w-full flex items-center justify-center relative my-2 min-h-0">
+          <div className="w-full flex items-center justify-center relative my-0 sm:my-2 min-h-0">
             {/* The Actual Grid */}
-            <div className="grid grid-cols-3 gap-2 w-full max-h-[45vh] aspect-square">
+            <div className="grid grid-cols-3 gap-2 w-full aspect-square">
               {board.map((cell, idx) => (
                 <motion.button
                   key={idx}

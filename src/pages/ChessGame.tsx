@@ -837,7 +837,7 @@ export default function ChessGame() {
     <div 
       ref={constraintsRef}
       className={cn(
-        "w-full max-w-screen-2xl mx-auto h-[100dvh] flex flex-col items-center justify-center gap-2 p-2 sm:p-4 overflow-hidden",
+        "w-full max-w-screen-2xl mx-auto h-[100dvh] flex flex-col items-center justify-center gap-2 p-0 sm:p-4 overflow-hidden",
         isEmbedded ? "pt-12" : "pt-24", "font-sans"
       )}
     >
@@ -908,21 +908,21 @@ export default function ChessGame() {
 
         {/* Board Container */}
         <div className={cn(
-          "w-full max-w-[600px] flex flex-col items-center justify-center p-3 sm:p-6 rounded-3xl sm:rounded-[2rem] relative shadow-2xl backdrop-blur-xl border border-[var(--color-glass-border)] shrink-0",
+          "w-full max-w-[600px] flex flex-col items-center justify-center p-0 sm:p-6 rounded-none sm:rounded-[2rem] relative shadow-2xl backdrop-blur-xl border-x-0 sm:border border-[var(--color-glass-border)] shrink-0",
            boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
         )}>
           
           {/* Header specific to Chess */}
-          <div className="w-full flex justify-between items-center mb-2 px-1">
+          <div className="w-full flex justify-between items-center mb-2 px-4 sm:px-1">
              <div className="text-white font-bold">{opponentName}</div>
              <div className={cn("px-3 py-1 rounded-full text-xs font-bold", game.turn() === 'b' ? 'bg-blue-500 text-white' : 'bg-black/50 text-gray-400')}>
                 {game.turn() === 'b' ? 'Thinking...' : 'Waiting'}
              </div>
           </div>
 
-           <div className="w-full flex items-center justify-center relative my-4">
+           <div className="w-full flex items-center justify-center relative my-0 sm:my-4">
              <div 
-               className="w-full max-w-[85vw] sm:max-w-[400px] md:max-w-[500px] aspect-square rounded-md overflow-hidden ring-4 ring-black/40 relative z-30 bg-[#333] flex"
+               className="w-full max-w-full sm:max-w-[400px] md:max-w-[500px] aspect-square rounded-none sm:rounded-md overflow-hidden sm:ring-4 ring-black/40 relative z-30 bg-[#333] flex"
              >
                <div className="w-full h-full grid grid-cols-8 grid-rows-8">
                   {(() => {
