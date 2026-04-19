@@ -134,8 +134,8 @@ export default function Navbar() {
 
   return (
     <>
-      <div className="fixed top-6 left-0 right-0 z-[100] flex justify-center px-4">
-        <nav className="flex items-center gap-2 p-2 bg-[var(--color-glass-surface)]/80 backdrop-blur-xl border border-[var(--color-glass-border)] rounded-full shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+      <div className="fixed top-3 sm:top-6 left-0 right-0 z-[100] flex justify-center px-2 sm:px-4 pointer-events-none">
+        <nav className="flex items-center gap-0.5 sm:gap-2 p-1 bg-[var(--color-glass-surface)]/90 backdrop-blur-2xl border border-[var(--color-glass-border)] rounded-full shadow-2xl max-w-[95vw] sm:max-w-full overflow-hidden pointer-events-auto">
           {TABS.map((tab) => {
             const isActive = location.pathname === tab.path;
             return (
@@ -143,7 +143,7 @@ export default function Navbar() {
                 key={tab.path}
                 to={tab.path}
                 className={cn(
-                  "relative flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-full transition-colors",
+                  "relative flex items-center gap-1.5 px-3 sm:px-6 py-2 text-xs sm:text-sm font-bold rounded-full transition-all",
                   isActive ? "text-white" : "text-purple-200 hover:text-white hover:bg-white/5"
                 )}
               >
@@ -155,30 +155,30 @@ export default function Navbar() {
                   />
                 )}
                 <tab.icon className="w-4 h-4 relative z-10" />
-                <span className="relative z-10">{tab.name}</span>
+                <span className="relative z-10 hidden sm:block">{tab.name}</span>
               </NavLink>
             );
           })}
           
-          <div className="w-px h-6 bg-purple-500/30 mx-1"></div>
+          <div className="w-px h-5 bg-purple-500/30 mx-0.5 sm:mx-1 shrink-0"></div>
           
           <button
              onClick={() => setShowJoinModal(true)}
-             className="relative flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-full transition-colors hover:bg-blue-500/20 text-blue-300 hover:text-blue-200 border border-transparent hover:border-blue-400/30"
+             className="relative flex items-center gap-1.5 px-3 sm:px-6 py-2 text-xs sm:text-sm font-black rounded-full transition-all hover:bg-blue-500/20 text-blue-300 hover:text-blue-200 border border-transparent hover:border-blue-400/30 whitespace-nowrap"
           >
              <KeyRound className="w-4 h-4" />
-             Join Game
+             <span className="hidden sm:inline">Join Game</span>
           </button>
 
           {showInstallBtn && (
             <>
-              <div className="w-px h-6 bg-purple-500/30 mx-1"></div>
+              <div className="w-px h-5 bg-purple-500/30 mx-0.5 sm:mx-1 shrink-0"></div>
               <button
                 onClick={handleInstallClick}
-                className="relative flex items-center gap-2 px-6 py-2.5 text-sm font-black rounded-full transition-all bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.4)] hover:shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-pulse hover:animate-none group"
+                className="relative flex items-center gap-1.5 px-3 sm:px-6 py-2 text-xs sm:text-sm font-black rounded-full transition-all bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white shadow-lg animate-pulse hover:animate-none group whitespace-nowrap"
               >
-                <Download className="w-4 h-4 group-hover:bounce" />
-                Install App
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Install App</span>
               </button>
             </>
           )}
