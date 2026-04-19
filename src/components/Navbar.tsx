@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useUserStore } from '../store/userStore';
@@ -102,9 +102,10 @@ export default function Navbar() {
             className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
           >
             <motion.div
-              initial={{ scale: 0.9, y: 20 }}
+              initial={{ scale: 0.95, y: 10 }}
               animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
+              exit={{ scale: 0.95, y: 10 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
               className="bg-[var(--color-glass-surface)] border border-[var(--color-glass-border)] p-6 rounded-3xl w-full max-w-sm shadow-[0_0_30px_rgba(59,130,246,0.3)]"
             >
               <div className="flex justify-between items-center mb-6">

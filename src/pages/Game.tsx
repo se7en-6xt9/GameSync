@@ -30,6 +30,8 @@ export default function Game() {
   const [opponentName, setOpponentName] = useState<string>('Opponent');
   const [isEmbedded, setIsEmbedded] = useState(false);
   const [boardTheme, setBoardTheme] = useState<Theme>('neon');
+  const [difficulty, setDifficulty] = useState<'easy' | 'hard'>('hard');
+  const [startingPlayer, setStartingPlayer] = useState<'X' | 'O'>('X');
   const isInitializing = useRef(false);
   const constraintsRef = useRef(null);
 
@@ -403,13 +405,28 @@ export default function Game() {
 
   const makeComputerMove = (currBoard: Player[]) => {
     // Check available spots
-    const availSpots = currBoard.map((s, i) => s === null ? i : null).filter(s => s !== null);
+    const availSpots = currBoard.map((s, i) => s === null ? i : null).filter(s => s !== null) as number[];
     if (availSpots.length === 0) return;
 
-    // Simple AI for now - get random or middle
-    let moveIdx = availSpots.includes(4) ? 4 : availSpots[Math.floor(Math.random() * availSpots.length)] as number;
+    let moveIdx: number;
+    if (difficulty === 'hard') {
+      // Use minimax to find the best move
+      let bestScore = -Infinity;
+      moveIdx = availSpots[0];
+      for (const spot of availSpots) {
+        const boardCopy = [...currBoard];
+        boardCopy[spot] = 'O';
+        const score = minimax(boardCopy, 'X');
+        if (score > bestScore) {
+          bestScore = score;
+          moveIdx = spot;
+        }
+      }
+    } else {
+      // Easy mode: random move, preferring center
+      moveIdx = availSpots.includes(4) ? 4 : availSpots[Math.floor(Math.random() * availSpots.length)];
+    }
     
-    // Attempt min-max if you want it unbeatable, but random/simple is fine for standard.
     const newBoard = [...currBoard];
     newBoard[moveIdx] = 'O';
     handleMoveResult(newBoard, 'O');
@@ -456,16 +473,24 @@ export default function Game() {
 
   const resetBoard = async () => {
     const emptyBoard = Array(9).fill(null);
+    const nextToStart = startingPlayer === 'X' ? 'O' : 'X';
+    
+    setStartingPlayer(nextToStart);
     setBoard(emptyBoard);
-    setCurrentTurn('X');
+    setCurrentTurn(nextToStart);
     setWinner(null);
+    
     if (gameId) {
       await updateDoc(doc(db, 'games', gameId), {
         board: emptyBoard,
-        currentTurn: 'X',
+        currentTurn: nextToStart,
         winner: null,
         updatedAt: serverTimestamp()
       });
+    }
+
+    if (mode === 'computer' && nextToStart === 'O') {
+      setTimeout(() => makeComputerMove(emptyBoard), 500);
     }
   };
 
@@ -548,13 +573,29 @@ export default function Game() {
             <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Exit
           </button>
           
-          <button
-            onClick={() => setBoardTheme(prev => prev === 'neon' ? 'cyberpunk' : (prev === 'cyberpunk' ? 'classic' : 'neon'))}
-            className="flex items-center gap-1.5 text-xs sm:text-sm text-purple-200 hover:text-white transition-colors font-medium border border-purple-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm hover:bg-purple-500/20"
-          >
-            <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
-            <span className="capitalize">{boardTheme}</span>
-          </button>
+          <div className="flex gap-2">
+            {mode === 'computer' && (
+              <button
+                onClick={() => setDifficulty(prev => prev === 'easy' ? 'hard' : 'easy')}
+                className={cn(
+                  "flex items-center gap-1.5 text-xs sm:text-sm transition-all font-bold border rounded-full px-3 py-1.5",
+                  difficulty === 'hard' 
+                    ? "text-red-400 border-red-500/30 bg-red-950/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]" 
+                    : "text-green-400 border-green-500/30 bg-green-950/20"
+                )}
+              >
+                AI: {difficulty.toUpperCase()}
+              </button>
+            )}
+            
+            <button
+              onClick={() => setBoardTheme(prev => prev === 'neon' ? 'cyberpunk' : (prev === 'cyberpunk' ? 'classic' : 'neon'))}
+              className="flex items-center gap-1.5 text-xs sm:text-sm text-purple-200 hover:text-white transition-colors font-medium border border-purple-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm hover:bg-purple-500/20"
+            >
+              <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
+              <span className="capitalize">{boardTheme}</span>
+            </button>
+          </div>
         </div>
 
         {/* Maximize the Board UI Container */}

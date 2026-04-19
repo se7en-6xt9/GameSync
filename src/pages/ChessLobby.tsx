@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useUserStore } from '../store/userStore';
-import { GamepadIcon, Users, Cpu, Globe } from 'lucide-react';
+import { Users, Cpu, Globe } from 'lucide-react';
 import { cn } from '../components/Navbar';
 
 const GAME_MODES = [
   {
     id: 'local',
-    title: 'Player vs Player',
+    title: 'Local Match',
     description: 'Play locally on the same screen.',
     icon: Users,
     color: 'from-blue-500/20 to-purple-500/20',
@@ -16,23 +16,23 @@ const GAME_MODES = [
   },
   {
     id: 'online',
-    title: 'Online Multiplayer',
-    description: 'Play with someone across the internet.',
+    title: 'Online Match',
+    description: 'Play with a friend across the internet.',
     icon: Globe,
     color: 'from-fuchsia-500/20 to-purple-500/20',
     border: 'border-fuchsia-400/30'
   },
   {
     id: 'computer',
-    title: 'Player vs Computer',
-    description: 'Test your skills against AI.',
+    title: 'Vs Computer',
+    description: 'Test your skills against AI with multiple difficulties.',
     icon: Cpu,
     color: 'from-teal-500/20 to-purple-500/20',
     border: 'border-teal-400/30'
   }
 ];
 
-export default function TicTacToeLobby() {
+export default function ChessLobby() {
   const navigate = useNavigate();
   const { username, setNamePopupOpen } = useUserStore();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
@@ -42,7 +42,6 @@ export default function TicTacToeLobby() {
     if (window !== window.top) {
       const referrer = document.referrer;
       const parentEnv = import.meta.env.VITE_PARENT_ORIGIN || 'melodysync';
-      
       if (referrer && referrer.includes(parentEnv.replace('https://', ''))) {
         setIsEmbedded(true);
       }
@@ -55,16 +54,9 @@ export default function TicTacToeLobby() {
       return;
     }
     
-    // Auto-Destroy previous games logic:
-    // Before starting a new game, if there is a pending old game in memory, delete it!
     const oldGameId = useUserStore.getState().activeGameId;
-    if (oldGameId) {
-      console.log("Destroying old uncompleted game session:", oldGameId);
-    }
-    
-    // Clear active game memory so this forces a BRAND NEW session
     useUserStore.getState().setActiveGameId(null);
-    navigate(`/game/${modeId}?clearOld=true`);
+    navigate(`/chessgame/${modeId}?clearOld=true`);
   };
 
   return (
@@ -75,12 +67,13 @@ export default function TicTacToeLobby() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 400, damping: 25 }}
         className="text-center mb-16"
       >
-        <h1 className="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-br from-white to-purple-400 bg-clip-text text-transparent">
-          Tic-Tac-Toe
+        <h1 className="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-br from-white to-blue-400 bg-clip-text text-transparent">
+          Chess
         </h1>
-        <p className="text-purple-200 text-lg md:text-xl max-w-2xl mx-auto">
+        <p className="text-blue-200 text-lg md:text-xl max-w-2xl mx-auto">
           Choose a mode to start playing.
         </p>
       </motion.div>
@@ -100,7 +93,7 @@ export default function TicTacToeLobby() {
               className={cn(
                 "relative flex flex-col p-8 rounded-3xl cursor-pointer overflow-hidden transition-all duration-300",
                 "bg-[var(--color-glass-surface)] backdrop-blur-xl border border-[var(--color-glass-border)]",
-                isSelected ? "ring-2 ring-purple-400 shadow-[0_0_30px_rgba(157,124,255,0.3)]" : "hover:border-purple-400/50"
+                isSelected ? "ring-2 ring-blue-400 shadow-[0_0_30px_rgba(59,130,246,0.3)]" : "hover:border-blue-400/50"
               )}
             >
               <div className={cn("absolute inset-0 bg-gradient-to-br opacity-50", mode.color)} />
@@ -110,7 +103,7 @@ export default function TicTacToeLobby() {
                   <mode.icon className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-2xl font-bold">{mode.title}</h3>
-                <p className="text-purple-200 text-sm">
+                <p className="text-blue-200 text-sm">
                   {mode.description}
                 </p>
 
@@ -122,7 +115,7 @@ export default function TicTacToeLobby() {
                       e.stopPropagation();
                       startMatch(mode.id);
                     }}
-                    className="mt-4 px-8 py-3 bg-white text-purple-900 rounded-full font-bold shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:shadow-[0_0_30px_rgba(255,255,255,0.6)] focus:outline-none"
+                    className="mt-4 px-8 py-3 bg-white text-blue-900 rounded-full font-bold shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:shadow-[0_0_30px_rgba(255,255,255,0.6)] focus:outline-none"
                   >
                     Start Game
                   </motion.button>

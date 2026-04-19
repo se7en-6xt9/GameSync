@@ -5,6 +5,8 @@ import NamePopup from './components/NamePopup';
 import Home from './pages/Home';
 import TicTacToeLobby from './pages/TicTacToeLobby';
 import Game from './pages/Game';
+import ChessLobby from './pages/ChessLobby';
+import ChessGame from './pages/ChessGame';
 import Profile from './pages/Profile';
 
 export default function App() {
@@ -22,8 +24,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/tictactoe" element={<TicTacToeLobby />} />
+        <Route path="/chess" element={<ChessLobby />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/game/:mode" element={<Game />} />
+        <Route path="/chessgame/:mode" element={<ChessGame />} />
       </Routes>
     </BrowserRouter>
   );
