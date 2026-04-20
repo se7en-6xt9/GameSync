@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, MessageSquare, Send, RotateCcw, Palette, Users, X, Copy, Check, UserMinus, Crown } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, RotateCcw, Palette, Users, X, Copy, Check, UserMinus, Crown, Shield, ChevronRight, Trash2 } from 'lucide-react';
 import { cn } from '../components/Navbar';
 import { useUserStore } from '../store/userStore';
 import { db } from '../firebase';
@@ -604,7 +604,8 @@ export default function ChessGame() {
         senderId: userId,
         senderName: username,
         text: messageText,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
       });
     } catch(err) { console.error('Error sending message:', err) }
   };
@@ -841,79 +842,136 @@ export default function ChessGame() {
       ref={constraintsRef}
       className={cn(
         "w-full max-w-screen-2xl mx-auto h-[100dvh] flex flex-col items-center justify-center gap-2 p-0 sm:p-4 overflow-hidden",
-        isEmbedded ? "pt-12" : "pt-24", "font-sans"
+        isEmbedded ? "pt-12" : "pt-20 lg:pt-12", "font-sans"
       )}
     >
-      <div className="w-full flex-1 flex flex-col items-center justify-center min-h-0">
+      <div className="w-full flex-1 flex flex-col lg:flex-row items-center lg:items-center justify-center gap-4 lg:gap-12 min-h-0 px-4">
         
-        {/* Top Controls */}
-        <div className="w-full max-w-[600px] flex justify-between items-center mb-2 px-2">
+        {/* Left Side: Exit/Theme (Visible only on LG+, moved from top) */}
+        <div className="hidden lg:flex flex-col gap-4 w-48 shrink-0">
           <button
             onClick={() => {
               setActiveGameId(null);
               navigate('/');
             }}
-            className="flex items-center gap-1.5 text-xs sm:text-sm text-blue-200 hover:text-white transition-colors font-medium border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm shadow-[0_0_15px_rgba(59,130,246,0.1)] hover:border-red-400/50 hover:text-red-300"
+            className="flex items-center justify-center gap-2 px-6 py-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 rounded-2xl transition-all font-bold group"
           >
-            <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Exit
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /> Exit Game
           </button>
-          
-          <div className="flex gap-2">
-             {!isWaiting && mode === 'computer' && !isGameStarted && (
-                 <button
-                    onClick={() => setIsGameStarted(true)}
-                    className="flex items-center gap-1.5 text-xs sm:text-sm text-white transition-all font-bold border-2 border-orange-500 rounded-full px-4 py-1.5 bg-orange-600/90 shadow-[0_0_15px_rgba(249,115,22,0.6)] hover:bg-orange-500 hover:shadow-[0_0_25px_rgba(249,115,22,0.9)] animate-pulse"
-                 >
-                    {history.length > 0 ? 'Resume Game' : 'Start Game'}
-                 </button>
-             )}
+
+          <div className="p-4 bg-[var(--color-glass-surface)] border border-[var(--color-glass-border)] rounded-2xl space-y-4">
+            <p className="text-blue-200/50 text-xs font-black uppercase tracking-widest">Settings</p>
+            <button
+              onClick={() => setBoardTheme(prev => prev === 'neon' ? 'cyberpunk' : (prev === 'cyberpunk' ? 'classic' : (prev === 'classic' ? 'original' : 'neon')))}
+              className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 text-white border border-white/5 rounded-xl transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-purple-400" />
+                <span className="text-sm font-bold capitalize">{boardTheme}</span>
+              </div>
+              <ChevronRight className="w-4 h-4 opacity-30" />
+            </button>
             
-             {!isWaiting && history.length === 0 && (
-                <button
-                   onClick={handleSwapSides}
-                   className="flex items-center gap-1.5 text-xs sm:text-sm text-blue-200 hover:text-white transition-colors font-medium border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm hover:bg-blue-500/20"
-                >
-                   <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Swap
-                </button>
-             )}
+            {!isWaiting && history.length === 0 && (
+              <button
+                 onClick={handleSwapSides}
+                 className="w-full flex items-center gap-2 px-4 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl transition-all text-sm font-bold"
+              >
+                 <RotateCcw className="w-4 h-4" /> Swap Sides
+              </button>
+            )}
 
-             {(!isWaiting && history.length > 0) && (
-                <button
-                   onClick={openRestartModal}
-                   className="flex items-center gap-1.5 text-xs sm:text-sm text-blue-200 hover:text-white transition-colors font-medium border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-300"
-                >
-                   <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Restart
-                </button>
-             )}
-
-             {mode === 'computer' && (
-                <select 
-                   value={difficulty}
-                   onChange={(e) => setDifficulty(Number(e.target.value))}
-                   className="flex items-center gap-1.5 text-xs sm:text-sm text-blue-200 bg-blue-900/50 border border-blue-500/30 rounded-full px-3 py-1.5 outline-none font-medium cursor-pointer"
-                >
-                   {[1,2,3,4,5,6,7,8].map(l => (
-                      <option key={l} value={l} className="bg-slate-900 text-white">Level {l}</option>
-                   ))}
-                   <option value={9} className="bg-red-900 text-red-300 font-bold">Grandmaster</option>
-                </select>
-             )}
-
-             <button
-               onClick={() => setBoardTheme(prev => prev === 'neon' ? 'cyberpunk' : (prev === 'cyberpunk' ? 'classic' : (prev === 'classic' ? 'original' : 'neon')))}
-               className="flex items-center gap-1.5 text-xs sm:text-sm text-blue-200 hover:text-white transition-colors font-medium border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm hover:bg-blue-500/20"
-             >
-               <Palette className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
-               <span className="capitalize">{boardTheme}</span>
-             </button>
+            {(!isWaiting && history.length > 0) && (
+              <button
+                 onClick={openRestartModal}
+                 className="w-full flex items-center gap-2 px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded-xl transition-all text-sm font-bold"
+              >
+                 <RotateCcw className="w-4 h-4" /> Restart
+              </button>
+            )}
           </div>
+          
+          {mode === 'computer' && (
+            <div className="p-4 bg-[var(--color-glass-surface)] border border-[var(--color-glass-border)] rounded-2xl space-y-3">
+              <p className="text-blue-200/50 text-xs font-black uppercase tracking-widest">Difficulty</p>
+              <div className="grid grid-cols-1 gap-2">
+                 <select 
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(Number(e.target.value))}
+                    className="w-full bg-black/40 border border-blue-500/30 rounded-xl px-4 py-3 text-white outline-none font-bold text-sm"
+                 >
+                    {[1,2,3,4,5,6,7,8].map(l => (
+                       <option key={l} value={l}>Level {l}</option>
+                    ))}
+                    <option value={9}>Grandmaster</option>
+                 </select>
+                 {!isWaiting && !isGameStarted && (
+                   <button
+                      onClick={() => setIsGameStarted(true)}
+                      className="w-full py-3 bg-orange-600 hover:bg-orange-500 text-white font-black rounded-xl shadow-lg transition-all text-sm animate-pulse"
+                   >
+                     START GAME
+                   </button>
+                 )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Board Container */}
-        <div className={cn(
-          "w-full max-w-[600px] flex flex-col items-center justify-center p-0 sm:p-6 rounded-none sm:rounded-[2rem] relative shadow-2xl backdrop-blur-xl border-x-0 sm:border border-[var(--color-glass-border)] shrink-0",
-           boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
-        )}>
+        {/* Center/Board Area */}
+        <div className="flex flex-col items-center min-w-0">
+          
+          {/* Mobile-only Top Row */}
+          <div className="w-full max-w-[600px] flex lg:hidden justify-between items-center mb-2 px-2">
+            <button
+              onClick={() => {
+                setActiveGameId(null);
+                navigate('/');
+              }}
+              className="flex items-center gap-1.5 text-xs text-blue-200 hover:text-white transition-colors font-bold border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)]"
+            >
+              <ArrowLeft className="w-4 h-4" /> Exit
+            </button>
+            
+            <div className="flex gap-2">
+               {(gameId && (mySymbol === 'w' || mode !== 'online')) && (
+                  <button
+                     onClick={async () => {
+                         if (gameId) {
+                             try {
+                                 await deleteDoc(doc(db, 'games', gameId));
+                                 setActiveGameId(null);
+                             } catch(e) {}
+                         }
+                         navigate('/');
+                     }}
+                     className="flex items-center gap-1.5 text-xs text-red-400 border border-red-500/30 hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-colors"
+                  >
+                     <Trash2 className="w-4 h-4" /> Destroy
+                  </button>
+               )}
+               {!isWaiting && history.length === 0 && (
+                  <button
+                     onClick={handleSwapSides}
+                     className="flex items-center gap-1.5 text-xs text-blue-200 border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)]"
+                  >
+                     <RotateCcw className="w-4 h-4" /> Swap
+                  </button>
+               )}
+
+               <button
+                 onClick={() => setBoardTheme(prev => prev === 'neon' ? 'cyberpunk' : (prev === 'cyberpunk' ? 'classic' : (prev === 'classic' ? 'original' : 'neon')))}
+                 className="flex items-center gap-1.5 text-xs text-blue-200 border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)]"
+               >
+                 <Palette className="w-4 h-4" /> <span className="capitalize">{boardTheme}</span>
+               </button>
+            </div>
+          </div>
+
+          <div className={cn(
+            "w-full max-w-[600px] flex flex-col items-center justify-center p-0 sm:p-6 rounded-none sm:rounded-[2.5rem] relative shadow-2xl backdrop-blur-2xl border-x-0 sm:border border-[var(--color-glass-border)] shrink-0",
+             boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
+          )}>
             
             <AnimatePresence>
               {isGameOver && showGameOverModal && (
@@ -1114,6 +1172,89 @@ export default function ChessGame() {
              </div>
           </div>
         </div>
+
+          {/* AI vs Player Bottom Controls (Mobile-ish View) */}
+          <div className="lg:hidden w-full max-w-[600px] mt-4 px-2">
+             {!isWaiting && mode === 'computer' && (
+                <div className="flex items-center gap-3 bg-[var(--color-glass-surface)]/60 backdrop-blur-xl p-3 border border-[var(--color-glass-border)] rounded-[2rem] shadow-xl">
+                   <div className="flex flex-col gap-1 flex-1 px-2">
+                      <p className="text-[10px] font-black text-blue-200/50 uppercase tracking-widest pl-1">Level Selection</p>
+                      <select 
+                        value={difficulty}
+                        onChange={(e) => setDifficulty(Number(e.target.value))}
+                        className="w-full bg-black/40 border border-blue-500/20 rounded-xl px-4 py-2.5 text-white outline-none font-bold text-sm"
+                      >
+                        {[1,2,3,4,5,6,7,8].map(l => (
+                          <option key={l} value={l}>Level {l}</option>
+                        ))}
+                        <option value={9}>Grandmaster</option>
+                      </select>
+                   </div>
+                   
+                   {!isGameStarted && (
+                      <button
+                        onClick={() => setIsGameStarted(true)}
+                        className="flex-1 py-4 bg-gradient-to-r from-orange-600 to-orange-500 text-white font-black rounded-2xl shadow-lg transition-all text-sm animate-pulse uppercase"
+                      >
+                        Start Game
+                      </button>
+                   )}
+                   
+                   {isGameStarted && history.length > 0 && (
+                      <button
+                        onClick={openRestartModal}
+                        className="p-4 bg-red-500/20 text-red-300 border border-red-500/30 rounded-2xl hover:bg-red-500/40 transition-colors"
+                        title="Restart"
+                      >
+                        <RotateCcw className="w-5 h-5" />
+                      </button>
+                   )}
+                </div>
+             )}
+          </div>
+        </div>
+
+        {/* Right Sidebar for PC (Optional space for more stats/info) */}
+        <div className="hidden xl:flex flex-col gap-4 w-64 shrink-0">
+           <div className="p-6 bg-[var(--color-glass-surface)] border border-[var(--color-glass-border)] rounded-3xl space-y-6">
+              <h4 className="text-white font-black flex items-center gap-2">
+                 <Shield className="w-5 h-5 text-blue-400" /> Match Info
+              </h4>
+              
+              <div className="space-y-4">
+                 <div className="flex justify-between items-center text-sm">
+                    <span className="text-blue-200/60 font-medium tracking-tight">Status</span>
+                    <span className="text-white font-bold">{isGameOver ? 'Finished' : (isWaiting ? 'Ready' : 'In Progress')}</span>
+                 </div>
+                 <div className="flex justify-between items-center text-sm">
+                    <span className="text-blue-200/60 font-medium tracking-tight">Mode</span>
+                    <span className="text-white font-bold capitalize">{mode}</span>
+                 </div>
+                 <div className="flex justify-between items-center text-sm">
+                    <span className="text-blue-200/60 font-medium tracking-tight">History</span>
+                    <span className="text-white font-bold">{history.length} Moves</span>
+                 </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/5">
+                 <p className="text-[10px] text-blue-200/30 font-black uppercase tracking-[0.2em] mb-4">Move History</p>
+                 <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar space-y-1">
+                    {history.length === 0 ? (
+                       <p className="text-xs text-white/20 italic">No moves yet</p>
+                    ) : (
+                       history.map((m, i) => (
+                          <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-white/5 text-[10px] text-white/80 font-mono">
+                             <span className="opacity-40">{i+1}.</span>
+                             <span className="font-bold">{m.san}</span>
+                             <span className="opacity-40 text-[8px] uppercase">{m.color === 'w' ? 'White' : 'Black'}</span>
+                          </div>
+                       ))
+                    )}
+                 </div>
+              </div>
+           </div>
+        </div>
+
       </div>
 
       {mode === 'online' && (
