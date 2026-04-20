@@ -17,6 +17,13 @@ type ChatMessage = {
   timestamp: any;
 };
 
+type ChessMove = {
+  san: string;
+  color: string;
+  from: string;
+  to: string;
+};
+
 // URL mapping for standard chess pieces
 const PIECE_IMAGES: Record<string, string> = {
   'p_w': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
@@ -61,7 +68,7 @@ export default function ChessGame() {
   
   const [game, setGame] = useState(new Chess());
   const [fen, setFen] = useState(game.fen());
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<ChessMove[]>([]);
   const [gameId, setGameId] = useState<string | null>(null);
   
   const [isWaiting, setIsWaiting] = useState(false);
@@ -553,7 +560,21 @@ export default function ChessGame() {
         }
         setGame(newGame);
         setFen(newGame.fen());
-        setHistory(data.history || []);
+        
+        // Handle conversion if history contains strings (compatibility)
+        const rawHistory = data.history || [];
+        const normalizedHistory: ChessMove[] = rawHistory.map((m: any) => {
+           if (typeof m === 'string') {
+              // This is a minimal conversion, but ideally we want objects.
+              // Since we're rebuilding the game anyway, we could re-derive verbose history
+              return { san: m, color: '?', from: '?', to: '?' };
+           }
+           return m as ChessMove;
+        });
+
+        // Actually, the most reliable way to get verbose history after loading a FEN/moves is:
+        const verboseHistory = newGame.history({ verbose: true }) as any as ChessMove[];
+        setHistory(verboseHistory.length > 0 ? verboseHistory : normalizedHistory);
         
         if (newGame.isGameOver()) {
             setShowGameOverModal(true);
@@ -577,7 +598,7 @@ export default function ChessGame() {
        const messagesRef = collection(db, 'games', gameId, 'chat');
        const qMessages = query(messagesRef, orderBy('timestamp', 'asc'));
        unsubChat = onSnapshot(qMessages, (snap) => {
-         setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+         setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
        });
     }
 
@@ -685,7 +706,7 @@ export default function ChessGame() {
      if (gameCopy.isGameOver()) playSound('victory');
 
      if (gameId) {
-        const newHistory = gameCopy.history();
+        const newHistory = gameCopy.history({ verbose: true }) as any as ChessMove[];
         setHistory(newHistory);
         // Fire and forget Firestore update
         updateDoc(doc(db, 'games', gameId), {

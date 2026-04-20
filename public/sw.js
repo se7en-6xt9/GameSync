@@ -1,4 +1,4 @@
-const CACHE_NAME = 'melody-games-v1';
+const CACHE_NAME = 'melody-games-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -14,9 +14,17 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Use a Network First strategy for all requests
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });
