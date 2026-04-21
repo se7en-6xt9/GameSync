@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import IframeMessageHandler from './components/IframeMessageHandler';
 import Navbar from './components/Navbar';
 import NamePopup from './components/NamePopup';
@@ -29,6 +30,8 @@ export default function App() {
         <Route path="/game/:mode" element={<Game />} />
         <Route path="/chessgame/:mode" element={<ChessGame />} />
       </Routes>
+      
+      <Analytics />
     </BrowserRouter>
   );
 }
