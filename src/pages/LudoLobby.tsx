@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useUserStore } from '../store/userStore';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ArrowLeft, User, Users, Play, Crown } from 'lucide-react';
 import { cn } from '../components/Navbar';
 
@@ -11,33 +11,53 @@ export default function LudoLobby() {
   const navigate = useNavigate();
   const { username, userId } = useUserStore();
   const [isCreatingOnline, setIsCreatingOnline] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
   const [selectedPlayers, setSelectedPlayers] = useState(2); // 2, 3, or 4 players
+
+  const joinWithCode = () => {
+    if (!username.trim()) {
+      alert("Please set a username in Profile first!");
+      navigate('/profile');
+      return;
+    }
+    if (joinCode.length === 4) {
+       navigate(`/ludogame/online?roomId=${joinCode}`);
+    }
+  };
   const [botPlayerColor, setBotPlayerColor] = useState('red');
 
   const createOnlineGame = async () => {
     setIsCreatingOnline(true);
     try {
       const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
-      const docRef = await addDoc(collection(db, 'games'), {
+      
+      // Use setDoc with the code as the ID
+      await setDoc(doc(db, 'games', roomCode), {
         gameType: 'ludo',
-        mode: 'pvp-online',
+        mode: 'online',
         roomId: roomCode,
         hostId: userId,
         status: 'waiting',
         maxPlayers: selectedPlayers,
         players: [userId],
-        // Player details, keyed by user ID
         playerDetails: {
            [userId as string]: {
               name: username,
-              color: null, // Host will select color inside the game lobby pre-start
+              color: null,
               isReady: false
            }
         },
         ludoState: {
-           turn: null, // will be set once game starts
-           diceValue: null,
-           tokens: {}
+           turn: 'red',
+           phase: 'awaiting_roll',
+           diceValue: 1,
+           activeColors: ['red', 'green', 'yellow', 'blue'],
+           tokens: { 
+              red: [0, 0, 0, 0], 
+              green: [0, 0, 0, 0], 
+              yellow: [0, 0, 0, 0], 
+              blue: [0, 0, 0, 0] 
+           }
         },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -72,6 +92,31 @@ export default function LudoLobby() {
         <p className="text-purple-200/80 mb-12 text-center max-w-lg">
           Classic Ludo board game. Play locally against AI, pass-and-play with friends, or host a room online (2-4 players)!
         </p>
+
+        {/* Join Section */}
+        <div className="w-full max-w-2xl bg-white/5 border border-white/10 rounded-3xl p-6 mb-8 flex flex-col sm:flex-row gap-4 items-center">
+          <div className="flex-1 text-center sm:text-left">
+            <h3 className="text-white font-bold mb-1">Join Ludo Room</h3>
+            <p className="text-white/40 text-[10px] uppercase font-black tracking-widest">Enter 4-digit code</p>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <input 
+              type="text"
+              maxLength={4}
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="Code"
+              className="w-24 bg-black/40 border border-white/10 rounded-xl px-2 py-3 text-white font-mono text-center focus:outline-none focus:ring-2 focus:ring-red-500/50"
+            />
+            <button 
+              disabled={joinCode.length !== 4}
+              onClick={joinWithCode}
+              className="bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-bold transition-all flex-1 sm:flex-none"
+            >
+              Join
+            </button>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
            {/* Offline Options */}

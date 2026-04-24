@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useUserStore } from '../store/userStore';
 import { db } from '../firebase';
-import { doc, onSnapshot, updateDoc, collection, query, where, getDocs, deleteDoc, getDoc, serverTimestamp, addDoc } from 'firebase/firestore';
-import { ArrowLeft, Users, User, Play, Crown, RefreshCw, VolumeX, Volume2, Trash2 } from 'lucide-react';
+import { doc, onSnapshot, updateDoc, collection, query, where, getDocs, deleteDoc, getDoc, serverTimestamp, addDoc, setDoc, orderBy } from 'firebase/firestore';
+import { ArrowLeft, Users, User, Play, Crown, RefreshCw, VolumeX, Volume2, Trash2, MessageSquare, Send, Copy, Check } from 'lucide-react';
 import { cn } from '../components/Navbar';
 
 const COLORS = [
@@ -62,6 +62,45 @@ export default function LudoGame() {
   };
   const activeColors = gameDoc?.ludoState?.activeColors || ['red', 'green', 'yellow', 'blue'];
 
+  const safeUpdateDoc = async (docRef: any, data: any) => {
+    const clean = (obj: any): any => {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (obj instanceof Date) return obj;
+      if (obj && typeof obj === 'object' && (obj.constructor?.name === 'FieldValue' || '_methodName' in obj)) return obj;
+      
+      const newObj: any = Array.isArray(obj) ? [] : {};
+      Object.keys(obj).forEach(key => {
+        if (obj[key] !== undefined) {
+          const cleanedVal = clean(obj[key]);
+          if (cleanedVal !== undefined) newObj[key] = cleanedVal;
+        }
+      });
+      return newObj;
+    };
+
+    try {
+      const cleanedData = clean(data);
+      if (!cleanedData || typeof cleanedData !== 'object' || Array.isArray(cleanedData)) {
+          console.warn("safeUpdateDoc called with invalid data", data);
+          return;
+      }
+      await updateDoc(docRef, cleanedData);
+    } catch (error: any) {
+      if (error.code === 'not-found' || error.message?.includes('No document to update')) {
+        console.warn("Document not found for update, probably deleted:", docRef.id);
+        return;
+      }
+      console.error("Firestore update error:", error);
+    }
+  };
+
+  // Messenger logic for Online Mode
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [tooltipCopied, setTooltipCopied] = useState(false);
+
   // --- ONLINE SYNC ---
   useEffect(() => {
     if (!activeGameId || !userId) return;
@@ -75,24 +114,48 @@ export default function LudoGame() {
            // If we're a player in this game, ensure we're connected
            if (data.mode === 'online' && !data.players?.includes(userId)) {
               if (data.status === 'waiting' && data.players?.length < (data.maxPlayers || 4)) {
-                 updateDoc(doc(db, 'games', docSnap.id), {
+                 safeUpdateDoc(doc(db, 'games', docSnap.id), {
                     players: [...(data.players || []), userId],
                     [`playerDetails.${userId}`]: {
-                       name: username,
+                       name: username || 'Guest',
                        color: null,
                        isReady: false
                     }
                  });
-              } else {
-                 // Might be full or game already playing
               }
            }
         }
       }
     });
 
-    return () => unsub();
+    const messagesRef = collection(db, 'games', activeGameId, 'chat');
+    const qMessages = query(messagesRef, orderBy('timestamp', 'asc'));
+    const unsubChat = onSnapshot(qMessages, (snap) => {
+      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    return () => {
+      unsub();
+      unsubChat();
+    };
   }, [activeGameId, userId, username]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !activeGameId) return;
+
+    const messageText = newMessage;
+    setNewMessage('');
+    try {
+      await addDoc(collection(db, 'games', activeGameId, 'chat'), {
+        senderId: userId,
+        senderName: username,
+        text: messageText,
+        timestamp: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      });
+    } catch(err) { console.error('Error sending message:', err) }
+  };
 
 
   const getPathIndex = (color: string, pos: number) => {
@@ -145,7 +208,7 @@ export default function LudoGame() {
               
               setGameDoc((prev: any) => ({ ...prev, ludoState: skippedState }));
               if (gameDoc?.id) {
-                  updateDoc(doc(db, 'games', gameDoc.id), { ludoState: skippedState }).catch(console.error);
+                  safeUpdateDoc(doc(db, 'games', gameDoc.id), { ludoState: skippedState });
               }
            }, 1500); // Wait 1.5s in center reading the invalid dice result before moving token
         } else {
@@ -154,7 +217,7 @@ export default function LudoGame() {
 
            // Save to Firebase
            if (gameDoc?.id) {
-              updateDoc(doc(db, 'games', gameDoc.id), { ludoState: newLudoState }).catch(console.error);
+              safeUpdateDoc(doc(db, 'games', gameDoc.id), { ludoState: newLudoState });
            }
         }
 
@@ -219,7 +282,7 @@ export default function LudoGame() {
      setGameDoc((prev: any) => ({ ...prev, ludoState: newLudoState }));
      
      if (gameDoc?.id) {
-        updateDoc(doc(db, 'games', gameDoc.id), { ludoState: newLudoState, updatedAt: serverTimestamp() }).catch(console.error);
+        safeUpdateDoc(doc(db, 'games', gameDoc.id), { ludoState: newLudoState, updatedAt: serverTimestamp() });
      }
   };
 
@@ -312,17 +375,9 @@ export default function LudoGame() {
 
         // If we have roomId but no activeGameId, find it
         let currentActiveId = activeGameId;
-        if (!currentActiveId && mode === 'online' && roomId) {
-           const q = query(collection(db, 'games'), where('roomId', '==', roomId), where('gameType', '==', 'ludo'));
-           const snap = await getDocs(q);
-           if (!snap.empty) {
-              currentActiveId = snap.docs[0].id;
-              setActiveGameId(currentActiveId);
-           } else {
-              alert("Room not found!");
-              navigate('/');
-              return;
-           }
+        if (mode === 'online' && roomId) {
+           currentActiveId = roomId;
+           setActiveGameId(roomId);
         }
 
         if (currentActiveId) {
@@ -335,81 +390,20 @@ export default function LudoGame() {
                 setIsInitializingGame(false);
                 return;
              }
+          } else if (mode === 'online' && roomId) {
+              // Room ID provided but document doesn't exist
+              setIsInitializingGame(false);
+              alert("Room not found! Check your code.");
+              navigate('/ludo');
+              return;
           }
         }
 
-        // Clean up old sessions
-        try {
-            const specificGamesRef = collection(db, 'games');
-            const delQuery = query(specificGamesRef, where('players', 'array-contains', userId));
-            const snaps = await getDocs(delQuery);
-            const promises = snaps.docs
-                .filter(d => d.data().mode === 'online' && d.data().gameType === 'ludo' && (d.data().status === 'playing' || d.data().status === 'waiting'))
-                .map(d => deleteDoc(doc(db, 'games', d.id)));
-            await Promise.all(promises);
-        } catch(e) {}
-
         if (mode === 'online' && !roomId) {
-            // Find existing waiting game
-            const gamesRef = collection(db, 'games');
-            const q = query(gamesRef, where('status', '==', 'waiting'), where('mode', '==', 'online'), where('gameType', '==', 'ludo'));
-            const snapshot = await getDocs(q);
-            
-            let matchToJoin: any = null;
-            snapshot.forEach(d => {
-                if (!matchToJoin && d.data().hostId !== userId && (d.data().players?.length || 0) < (d.data().maxPlayers || 4)) {
-                   matchToJoin = { id: d.id, ...d.data() };
-                }
-            });
-
-            if (matchToJoin) {
-                setActiveGameId(matchToJoin.id);
-                setGameDoc(matchToJoin);
-                setIsInitializingGame(false);
-                return;
-            } else {
-                // Create new with 4-Digit Unique ID
-                let newCode = "";
-                let isUnique = false;
-                let attempts = 0;
-                while (!isUnique && attempts < 10) {
-                    newCode = Math.floor(1000 + Math.random() * 9000).toString();
-                    const checkQ = query(collection(db, 'games'), where('roomId', '==', newCode));
-                    const checkSnap = await getDocs(checkQ);
-                    if (checkSnap.empty) isUnique = true;
-                    attempts++;
-                }
-                
-                const hostColor = 'red';
-                const newLudoState = {
-                    turn: hostColor,
-                    phase: 'awaiting_roll',
-                    diceValue: 1,
-                    activeColors: ['red', 'green', 'yellow', 'blue'],
-                    tokens: { red: [0,0,0,0], green: [0,0,0,0], yellow: [0,0,0,0], blue: [0,0,0,0] }
-                };
-
-                const docRef = await addDoc(collection(db, 'games'), {
-                    gameType: 'ludo',
-                    roomId: newCode,
-                    mode: 'online',
-                    status: 'waiting',
-                    hostId: userId,
-                    players: [userId],
-                    maxPlayers: requestedPlayers,
-                    playerDetails: {
-                        [userId]: { name: username || 'Guest', color: null, isReady: false }
-                    },
-                    ludoState: newLudoState,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
-                });
-                setActiveGameId(docRef.id);
-                setGameDoc({ id: docRef.id, ludoState: newLudoState, mode: 'online', roomId: newCode });
-                setIsInitializingGame(false);
-                return;
-            }
+            // No room ID provided for online mode -> Redirect back to lobby
+            setIsInitializingGame(false);
+            navigate('/ludo');
+            return;
         }
 
         if (mode !== 'online') {
@@ -479,14 +473,14 @@ export default function LudoGame() {
     // Add player to game if not present and room not full
     if (!players.includes(userId)) {
        if (gameDoc.status === 'waiting' && players.length < (gameDoc.maxPlayers || 4)) {
-         updateDoc(doc(db, 'games', gameDoc.id), {
+         safeUpdateDoc(doc(db, 'games', gameDoc.id), {
             players: [...players, userId],
             [`playerDetails.${userId}`]: {
-               name: username,
+               name: username || 'Guest',
                color: null,
                isReady: false
             }
-         }).catch(console.error);
+         });
        }
     }
   }, [gameDoc, userId, mode, username]);
@@ -499,7 +493,7 @@ export default function LudoGame() {
       const isTaken = Object.values(gameDoc.playerDetails as Record<string, any>).some(p => p.color === colorId);
       if (isTaken && gameDoc.playerDetails[userId as string]?.color !== colorId) return;
 
-      await updateDoc(doc(db, 'games', gameDoc.id), {
+      await safeUpdateDoc(doc(db, 'games', gameDoc.id), {
         [`playerDetails.${userId}.color`]: colorId
       });
     } else {
@@ -510,7 +504,7 @@ export default function LudoGame() {
   const toggleReady = async () => {
     if (mode === 'online' && gameDoc) {
       const current = gameDoc.playerDetails[userId as string]?.isReady || false;
-      await updateDoc(doc(db, 'games', gameDoc.id), {
+      await safeUpdateDoc(doc(db, 'games', gameDoc.id), {
         [`playerDetails.${userId}.isReady`]: !current
       });
     }
@@ -528,7 +522,7 @@ export default function LudoGame() {
         const activeColors = Object.values(gameDoc.playerDetails as Record<string, any>).map(p => p.color).filter(Boolean);
         const startingTurn = activeColors[0] || 'red';
 
-        await updateDoc(doc(db, 'games', gameDoc.id), {
+        await safeUpdateDoc(doc(db, 'games', gameDoc.id), {
            status: 'playing',
            'ludoState.turn': startingTurn,
            'ludoState.tokens': initTokens
@@ -551,108 +545,155 @@ export default function LudoGame() {
      const allReadyAndColorsPicked = Object.values(pDetails).every((p: any) => p.isReady && p.color);
      const canStart = gameDoc.hostId === userId && currentPlayers >= 2 && allReadyAndColorsPicked;
 
-     return (
-       <div className="pt-24 pb-12 px-4 max-w-5xl mx-auto min-h-screen flex flex-col">
-         <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-black text-white flex items-center gap-2">
-              <Crown className="w-8 h-8 text-yellow-500" /> Room Lobby ({currentPlayers}/{maxP})
-            </h1>
-            <div className="bg-white/10 px-4 py-2 rounded-lg font-mono text-xl tracking-widest text-blue-300 border border-white/20">
-              {roomId}
-            </div>
-         </div>
+      return (
+        <div className="pt-24 pb-12 px-4 max-w-7xl mx-auto min-h-screen flex flex-col uppercase">
+          <div className="flex items-center justify-between mb-8">
+             <h1 className="text-3xl font-black text-white flex items-center gap-2">
+               <Crown className="w-8 h-8 text-yellow-500" /> Room Lobby ({currentPlayers}/{maxP})
+             </h1>
+             <div className="flex items-center gap-4">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(roomId || gameDoc.id);
+                    setTooltipCopied(true);
+                    setTimeout(() => setTooltipCopied(false), 2000);
+                  }}
+                  className="bg-white/10 px-4 py-2 rounded-lg font-mono text-xl tracking-widest text-blue-300 border border-white/20 hover:bg-white/20 transition-all flex items-center gap-2"
+                >
+                  {roomId || gameDoc.id}
+                  {tooltipCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+             </div>
+          </div>
 
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Players List */}
-            <div className="bg-black/40 border border-white/10 rounded-3xl p-6 shadow-xl">
-               <h3 className="text-xl font-bold text-gray-300 mb-6 border-b border-white/10 pb-4">Players Connected</h3>
-               <div className="flex flex-col gap-4">
-                 {Object.entries(pDetails).map(([id, p]: [string, any]) => (
-                   <div key={id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
-                      <div className="flex items-center gap-3">
-                         <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-white uppercase shadow-inner", 
-                           p.color === 'red' ? 'bg-red-500' : p.color === 'blue' ? 'bg-blue-500' : p.color === 'green' ? 'bg-green-500' : p.color === 'yellow' ? 'bg-yellow-500' : 'bg-gray-600'
-                         )}>
-                            {p.color ? p.color[0] : '?'}
-                         </div>
-                         <div>
-                           <p className="font-bold text-white flex items-center gap-2">
-                              {p.name} {id === userId && <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">You</span>}
-                           </p>
-                           {id === gameDoc.hostId && <p className="text-[10px] text-yellow-500 font-black uppercase tracking-wider">Host</p>}
-                         </div>
-                      </div>
-                      <span className={cn("text-xs font-bold px-3 py-1 rounded-full", p.isReady ? "bg-green-500/20 text-green-400" : "bg-white/10 text-gray-400")}>
-                         {p.isReady ? 'READY' : 'SELECTING'}
-                      </span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
+             {/* Left Section: Players & Chat */}
+             <div className="lg:col-span-1 flex flex-col gap-6">
+                <div className="bg-black/40 border border-white/10 rounded-3xl p-6 shadow-xl flex-shrink-0">
+                   <h3 className="text-xl font-bold text-gray-300 mb-6 border-b border-white/10 pb-4">Players Connected</h3>
+                   <div className="flex flex-col gap-4">
+                     {Object.entries(pDetails).map(([id, p]: [string, any]) => (
+                       <div key={id} className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                          <div className="flex items-center gap-3">
+                             <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-white uppercase shadow-inner", 
+                               p.color === 'red' ? 'bg-red-500' : p.color === 'blue' ? 'bg-blue-500' : p.color === 'green' ? 'bg-green-500' : p.color === 'yellow' ? 'bg-yellow-500' : 'bg-gray-600'
+                             )}>
+                                {p.color ? p.color[0] : '?'}
+                             </div>
+                             <div>
+                               <p className="font-bold text-white flex items-center gap-2">
+                                  {p.name} {id === userId && <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full">You</span>}
+                               </p>
+                               {id === gameDoc.hostId && <p className="text-[10px] text-yellow-500 font-black uppercase tracking-wider">Host</p>}
+                             </div>
+                          </div>
+                          <span className={cn("text-xs font-bold px-3 py-1 rounded-full", p.isReady ? "bg-green-500/20 text-green-400" : "bg-white/10 text-gray-400")}>
+                             {p.isReady ? 'READY' : 'SELECTING'}
+                          </span>
+                       </div>
+                     ))}
+                     
+                     {Array.from({ length: maxP - currentPlayers }).map((_, i) => (
+                        <div key={`empty-${i}`} className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 opacity-50 border-dashed">
+                          <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"><User className="text-gray-500 w-5 h-5" /></div>
+                          <span className="text-gray-500 font-medium whitespace-nowrap">Waiting...</span>
+                        </div>
+                     ))}
                    </div>
-                 ))}
-                 
-                 {Array.from({ length: maxP - currentPlayers }).map((_, i) => (
-                    <div key={`empty-${i}`} className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 opacity-50 border-dashed">
-                      <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center"><User className="text-gray-500 w-5 h-5" /></div>
-                      <span className="text-gray-500 font-medium">Waiting for player...</span>
-                    </div>
-                 ))}
-               </div>
-            </div>
+                </div>
 
-            {/* Color Selection & Actions */}
-            <div className="flex flex-col gap-6">
-               <div className="bg-black/40 border border-white/10 rounded-3xl p-6 shadow-xl flex-1 flex flex-col">
-                  <h3 className="text-xl font-bold text-gray-300 mb-6 border-b border-white/10 pb-4">Choose Your Color</h3>
-                  <div className="grid grid-cols-2 gap-4 flex-1">
-                     {COLORS.map(c => {
-                        const isTakenByOther = Object.entries(pDetails).some(([id, p]: [string, any]) => id !== userId && p.color === c.id);
-                        const isMyColor = myDetail?.color === c.id;
-                        
-                        return (
-                           <button
-                             key={c.id}
-                             disabled={isTakenByOther || myDetail?.isReady}
-                             onClick={() => selectColor(c.id)}
-                             className={cn(
-                                "flex flex-col items-center justify-center gap-3 p-6 rounded-2xl border-4 transition-all shadow-lg",
-                                isMyColor ? `scale-105 bg-white/10` : isTakenByOther ? "opacity-30 grayscale cursor-not-allowed" : "hover:bg-white/5 hover:scale-105",
-                                c.id === 'red' ? (isMyColor ? 'border-red-500' : 'border-red-500/30 text-red-400') :
-                                c.id === 'blue' ? (isMyColor ? 'border-blue-500' : 'border-blue-500/30 text-blue-400') :
-                                c.id === 'green' ? (isMyColor ? 'border-green-500' : 'border-green-500/30 text-green-400') :
-                                (isMyColor ? 'border-yellow-500' : 'border-yellow-500/30 text-yellow-400')
-                             )}
-                           >
-                              <div className="w-12 h-12 rounded-full shadow-inner" style={{ backgroundColor: c.hex }}></div>
-                              <span className="font-bold text-lg">{c.name}</span>
-                              {isTakenByOther && <span className="text-xs text-red-300 bg-red-900/40 px-2 py-1 rounded-full absolute top-2 right-2">Taken</span>}
-                           </button>
-                        )
-                     })}
-                  </div>
-               </div>
+                {/* Lobby Chat Bubble */}
+                <div className="flex-1 bg-black/40 border border-white/10 rounded-3xl p-6 shadow-xl flex flex-col min-h-[400px]">
+                   <h3 className="text-xl font-bold text-gray-300 mb-6 border-b border-white/10 pb-4 flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5 text-blue-400" /> Lobby Chat
+                   </h3>
+                   <div className="flex-1 overflow-y-auto mb-4 space-y-4 pr-2 custom-scrollbar normal-case">
+                      {messages.map((msg) => (
+                        <div key={msg.id} className={cn("flex flex-col", msg.senderId === userId ? "items-end" : "items-start")}>
+                           <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase">{msg.senderName}</span>
+                           </div>
+                           <div className={cn("px-4 py-2 rounded-2xl max-w-[80%]", 
+                             msg.senderId === userId ? "bg-blue-600 text-white rounded-tr-none" : "bg-white/10 text-white rounded-tl-none")}>
+                              <p className="text-sm">{msg.text}</p>
+                           </div>
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                   </div>
+                   <form onSubmit={handleSendMessage} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type message..."
+                        className="flex-1 bg-white/10 border border-white/10 rounded-xl px-2 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 normal-case"
+                      />
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-xl transition-all">
+                         <Send className="w-5 h-5" />
+                      </button>
+                   </form>
+                </div>
+             </div>
 
-               {/* Ready / Start Actions */}
-               <div className="flex gap-4">
-                  <button
-                    disabled={!myDetail?.color}
-                    onClick={toggleReady}
-                    className={cn(
-                       "flex-1 py-4 font-black rounded-2xl shadow-xl transition-all uppercase text-lg disabled:opacity-50",
-                       myDetail?.isReady ? "bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30" : "bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-400 hover:to-emerald-500"
-                    )}
-                  >
-                     {myDetail?.isReady ? "Cancel Ready" : "I'm Ready"}
-                  </button>
+             <div className="lg:col-span-2 flex flex-col gap-6">
+                <div className="bg-black/40 border border-white/10 rounded-3xl p-6 shadow-xl flex-1 flex flex-col">
+                   <h3 className="text-xl font-bold text-gray-300 mb-6 border-b border-white/10 pb-4">Choose Your Color</h3>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+                      {COLORS.map(c => {
+                         const isTakenByOther = Object.entries(pDetails).some(([id, p]: [string, any]) => id !== userId && p.color === c.id);
+                         const isMyColor = myDetail?.color === c.id;
+                         
+                         return (
+                            <button
+                              key={c.id}
+                              disabled={isTakenByOther || myDetail?.isReady}
+                              onClick={() => selectColor(c.id)}
+                              className={cn(
+                                 "flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-4 transition-all shadow-lg relative",
+                                 isMyColor ? `scale-105 bg-white/10` : isTakenByOther ? "opacity-30 grayscale cursor-not-allowed" : "hover:bg-white/5 hover:scale-105",
+                                 c.id === 'red' ? (isMyColor ? 'border-red-500 bg-red-500/10' : 'border-red-500/30 text-red-400') :
+                                 c.id === 'blue' ? (isMyColor ? 'border-blue-500 bg-blue-500/10' : 'border-blue-500/30 text-blue-400') :
+                                 c.id === 'green' ? (isMyColor ? 'border-green-500 bg-green-500/10' : 'border-green-500/30 text-green-400') :
+                                 (isMyColor ? 'border-yellow-500 bg-yellow-500/10' : 'border-yellow-500/30 text-yellow-400')
+                              )}
+                            >
+                               <div className="w-16 h-16 rounded-full shadow-inner border-2 border-white/20" style={{ backgroundColor: c.hex }}></div>
+                               <span className="font-black text-xl tracking-tight">{c.name}</span>
+                               {isTakenByOther && (
+                                 <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
+                                   <span className="text-xs font-bold bg-red-600 px-3 py-1 rounded-full text-white uppercase tracking-wider">In Use</span>
+                                 </div>
+                               )}
+                            </button>
+                         )
+                      })}
+                   </div>
+                </div>
 
-                  {gameDoc.hostId === userId && (
-                     <button
-                       disabled={!canStart}
-                       onClick={startGame}
-                       className="flex-1 py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-black rounded-2xl shadow-lg transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 uppercase text-lg"
-                     >
-                        <Play className="fill-current w-5 h-5" /> Start Match
-                     </button>
-                  )}
-               </div>
-            </div>
+                <div className="flex gap-4">
+                   <button
+                     disabled={!myDetail?.color}
+                     onClick={toggleReady}
+                     className={cn(
+                        "flex-1 py-5 font-black rounded-2xl shadow-xl transition-all uppercase text-lg disabled:opacity-50 border-2",
+                        myDetail?.isReady ? "bg-red-500/20 text-red-400 border-red-500/50 hover:bg-red-500/30" : "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent hover:scale-105"
+                     )}
+                   >
+                      {myDetail?.isReady ? "Cancel Ready" : "I'm Ready"}
+                   </button>
+
+                   {gameDoc.hostId === userId && (
+                      <button
+                        disabled={!canStart}
+                        onClick={startGame}
+                        className="flex-1 py-5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-black rounded-2xl shadow-xl transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 uppercase text-lg hover:scale-105 border-2 border-white/10"
+                      >
+                         <Play className="fill-current w-6 h-6" /> Start Match
+                      </button>
+                   )}
+                </div>
+             </div>
          </div>
        </div>
      );
@@ -680,20 +721,49 @@ export default function LudoGame() {
             </button>
          )}
          
-         <div className="p-4 bg-[var(--color-glass-surface)]/60 backdrop-blur-xl border border-[var(--color-glass-border)] rounded-2xl hidden lg:block">
+         <div className="p-4 bg-[var(--color-glass-surface)]/60 backdrop-blur-xl border border-[var(--color-glass-border)] rounded-2xl hidden lg:block overflow-hidden flex flex-col max-h-[400px]">
            <h3 className="text-white font-black mb-2 flex items-center gap-2"><Users className="w-5 h-5 text-blue-400" /> Players</h3>
-           <div className="space-y-2">
-             {mode === 'online' && gameDoc && Object.entries(gameDoc.playerDetails).map(([id, p]: [string, any]) => (
+           <div className="space-y-2 mb-4 overflow-y-auto pr-1">
+             {mode === 'online' && gameDoc && gameDoc.playerDetails && Object.entries(gameDoc.playerDetails).map(([id, p]: [string, any]) => (
                 <div key={id} className={cn("px-3 py-2 rounded-xl flex items-center justify-between border shadow-inner", 
                   gameDoc?.ludoState?.turn === p.color ? `border-${p.color}-500 bg-${p.color}-500/10` : 'border-transparent bg-white/5'
                 )}>
                    <div className="flex flex-col">
-                     <span className="text-white font-bold text-sm truncate">{p.name} {id===userId && '(You)'}</span>
-                     <span className={cn("text-[10px] uppercase font-black", `text-${p.color}-400`)}>{p.color}</span>
+                     <span className="text-white font-bold text-xs truncate max-w-[120px]">{p.name} {id===userId && '(You)'}</span>
+                     <span className={cn("text-[8px] uppercase font-black", `text-${p.color}-400`)}>{p.color}</span>
                    </div>
                    {gameDoc?.ludoState?.turn === p.color && <div className="w-2 h-2 rounded-full bg-white animate-pulse"></div>}
                 </div>
              ))}
+           </div>
+           
+           {/* In-Game Chat Bubble */}
+           <div className="mt-auto border-t border-white/10 pt-4 flex flex-col h-64">
+              <div className="flex items-center justify-between mb-2">
+                 <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Live Chat</span>
+                 <MessageSquare className="w-3 h-3 text-blue-400" />
+              </div>
+              <div className="flex-1 overflow-y-auto mb-2 space-y-2 pr-1 custom-scrollbar">
+                  {messages.slice(-20).map((msg) => (
+                    <div key={msg.id} className="flex flex-col">
+                       <span className="text-[8px] font-bold text-gray-400">{msg.senderName}</span>
+                       <p className="text-[10px] text-white bg-white/5 rounded-lg px-2 py-1">{msg.text}</p>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+              </div>
+              <form onSubmit={handleSendMessage} className="flex gap-1">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Msg..."
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                  />
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white p-1 rounded-lg transition-all">
+                     <Send className="w-3 h-3" />
+                  </button>
+              </form>
            </div>
          </div>
        </div>

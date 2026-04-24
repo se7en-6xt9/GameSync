@@ -72,7 +72,7 @@ export default function Game() {
                  .filter(d => {
                    const data = d.data();
                    const checkingOnline = mode === 'online' ? data.mode === 'pvp-online' : data.mode === mode;
-                   return checkingOnline && (data.status === 'playing' || data.status === 'waiting');
+                   return (data.gameType === 'tictactoe' || !data.gameType) && checkingOnline && (data.status === 'playing' || data.status === 'waiting');
                  })
                  .map(d => deleteDoc(doc(db, 'games', d.id)));
              await Promise.all(promises);
@@ -105,16 +105,16 @@ export default function Game() {
                if (data.scores) setScores(data.scores);
              };
   
-             if (mode === 'online' && data.mode === 'pvp-online') {
-                hydrateState();
-                setMySymbol(data.playerX === userId ? 'X' : 'O');
-                setIsWaiting(data.status === 'waiting');
-                return;
-             } else if (mode === data.mode) {
-                hydrateState();
-                setMySymbol('X'); // In local/computer, local user is always primarily X
-                return;
-             }
+              if (mode === 'online' && data.mode === 'pvp-online' && data.gameType === 'tictactoe') {
+                 hydrateState();
+                 setMySymbol(data.playerX === userId ? 'X' : 'O');
+                 setIsWaiting(data.status === 'waiting');
+                 return;
+              } else if (mode === data.mode && (data.gameType === 'tictactoe' || !data.gameType)) {
+                 hydrateState();
+                 setMySymbol('X'); // In local/computer, local user is always primarily X
+                 return;
+              }
           }
         }
       }
@@ -127,7 +127,10 @@ export default function Game() {
            const delQuery = query(specificGamesRef, where('players', 'array-contains', userId));
            const snaps = await getDocs(delQuery);
            const promises = snaps.docs
-               .filter(d => d.data().mode === mode && (d.data().status === 'playing' || d.data().status === 'waiting'))
+               .filter(d => {
+                 const data = d.data();
+                 return (data.gameType === 'tictactoe' || !data.gameType) && data.mode === mode && (data.status === 'playing' || data.status === 'waiting');
+               })
                .map(d => deleteDoc(doc(db, 'games', d.id)));
            await Promise.all(promises);
          } catch(e) {}
@@ -138,6 +141,7 @@ export default function Game() {
       } else if (mode === 'local' || mode === 'computer') {
         // Local/AI logic -> Store in DB to enable resume!
         const docRef = await addDoc(collection(db, 'games'), {
+          gameType: 'tictactoe',
           mode: mode,
           status: 'playing',
           playerX: userId,
@@ -160,6 +164,34 @@ export default function Game() {
     
     initializeGame();
   }, [mode]);
+
+  const safeUpdateDoc = async (docRef: any, data: any) => {
+    const clean = (obj: any): any => {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (obj instanceof Date) return obj;
+      if (obj && typeof obj === 'object' && (obj.constructor?.name === 'FieldValue' || '_methodName' in obj)) return obj;
+      
+      const newObj: any = Array.isArray(obj) ? [] : {};
+      Object.keys(obj).forEach(key => {
+        if (obj[key] !== undefined) {
+          const cleanedVal = clean(obj[key]);
+          if (cleanedVal !== undefined) newObj[key] = cleanedVal;
+        }
+      });
+      return newObj;
+    };
+
+    try {
+      const cleanedData = clean(data);
+      await updateDoc(docRef, cleanedData);
+    } catch (error: any) {
+      if (error.code === 'not-found' || error.message?.includes('No document to update')) {
+        console.warn("Document not found for update, probably deleted:", docRef.id);
+        return;
+      }
+      console.error("Firestore update error:", error);
+    }
+  };
 
   const startOnlineMatch = async () => {
     setIsWaiting(true);
@@ -191,10 +223,10 @@ export default function Game() {
             setGameId(specificRoomId);
             setActiveGameId(specificRoomId);
             setMySymbol('O');
-            await updateDoc(docRef, {
+            await safeUpdateDoc(docRef, {
               status: 'playing',
               playerO: userId,
-              playerOName: username,
+              playerOName: username || 'Guest',
               players: [data.playerX, userId],
               updatedAt: serverTimestamp(),
               expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -232,7 +264,7 @@ export default function Game() {
 
     // Otherwise find waiting game
     const gamesRef = collection(db, 'games');
-    const q = query(gamesRef, where('status', '==', 'waiting'), where('mode', '==', 'pvp-online'));
+    const q = query(gamesRef, where('status', '==', 'waiting'), where('mode', '==', 'pvp-online'), where('gameType', '==', 'tictactoe'));
     const snapshot = await getDocs(q);
 
     let matchToJoin: any = null;
@@ -247,10 +279,10 @@ export default function Game() {
       setGameId(matchToJoin.id);
       setActiveGameId(matchToJoin.id);
       setMySymbol('O');
-      await updateDoc(doc(db, 'games', matchToJoin.id), {
+      await safeUpdateDoc(doc(db, 'games', matchToJoin.id), {
         status: 'playing',
         playerO: userId,
-        playerOName: username,
+        playerOName: username || 'Guest',
         players: [matchToJoin.playerX, userId],
         updatedAt: serverTimestamp(),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -309,6 +341,7 @@ export default function Game() {
       setGameId(newCode);
       setActiveGameId(newCode);
       setMySymbol('X');
+      navigate(`/game/online?roomId=${newCode}`, { replace: true });
     }
   };
 
@@ -322,7 +355,7 @@ export default function Game() {
         if (data.status !== 'waiting' && !data.players.includes(userId)) {
            // Wait a bit longer or check if we just joined
            const isJustJoined = activeGameId === gameId;
-           if (!isJustJoined) {
+           if (!isJustJoined && data.mode === 'pvp-online') {
               alert("You have been kicked from the room by the Admin.");
               setActiveGameId(null);
               navigate('/');
@@ -330,10 +363,10 @@ export default function Game() {
            }
         }
 
-        setBoard(data.board);
-        setCurrentTurn(data.currentTurn);
-        setWinner(data.winner);
-        setScores(data.scores);
+        if (data.board) setBoard(data.board);
+        if (data.currentTurn) setCurrentTurn(data.currentTurn);
+        if (data.winner !== undefined) setWinner(data.winner);
+        if (data.scores) setScores(data.scores);
         if (data.status === 'playing') setIsWaiting(false);
         setOpponentName(mySymbol === 'X' ? data.playerOName || 'Waiting...' : data.playerXName || 'Opponent');
       }
@@ -354,7 +387,7 @@ export default function Game() {
   const handleKickPlayer = async () => {
     if (gameId && mySymbol === 'X') {
        try {
-         await updateDoc(doc(db, 'games', gameId), {
+         await safeUpdateDoc(doc(db, 'games', gameId), {
            playerO: null,
            playerOName: null,
            players: [userId], // keep only X
@@ -471,13 +504,13 @@ export default function Game() {
     }
 
     if (gameId) {
-      updateDoc(doc(db, 'games', gameId), {
+      safeUpdateDoc(doc(db, 'games', gameId), {
         board: newBoard,
         currentTurn: nextTurn,
         winner: win,
         scores: updatedScores,
         updatedAt: serverTimestamp()
-      }).catch(e => console.error(e));
+      });
     }
 
     if (mode === 'computer' && !win && justPlayed === 'X') {
@@ -504,7 +537,7 @@ export default function Game() {
     setWinner(null);
     
     if (gameId) {
-      await updateDoc(doc(db, 'games', gameId), {
+      await safeUpdateDoc(doc(db, 'games', gameId), {
         board: emptyBoard,
         currentTurn: nextToStart,
         winner: null,

@@ -37,6 +37,17 @@ export default function ChessLobby() {
   const { username, setNamePopupOpen } = useUserStore();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [isEmbedded, setIsEmbedded] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+
+  const joinWithCode = () => {
+    if (!username.trim()) {
+      setNamePopupOpen(true);
+      return;
+    }
+    if (joinCode.length === 4) {
+       navigate(`/chessgame/online?roomId=${joinCode}`);
+    }
+  };
 
   useEffect(() => {
     if (window !== window.top) {
@@ -76,6 +87,35 @@ export default function ChessLobby() {
         <p className="text-blue-200 text-lg md:text-xl max-w-2xl mx-auto">
           Choose a mode to start playing.
         </p>
+      </motion.div>
+
+      {/* Join Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-12 w-full max-w-xl bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl flex flex-col sm:flex-row gap-4 items-center"
+      >
+        <div className="flex-1">
+          <h3 className="text-white font-bold mb-1">Join Chess Room</h3>
+          <p className="text-white/40 text-xs">Enter a 4-digit code to join a friend.</p>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <input 
+            type="text"
+            maxLength={4}
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="Room Code"
+            className="w-full sm:w-32 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-center focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          />
+          <button 
+            disabled={joinCode.length !== 4}
+            onClick={joinWithCode}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-bold transition-all transition-all"
+          >
+            Join
+          </button>
+        </div>
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">

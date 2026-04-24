@@ -376,6 +376,34 @@ export default function ChessGame() {
     initializeGame();
   }, [mode, userId, username, searchParams, activeGameId, setActiveGameId]);
 
+  const safeUpdateDoc = async (docRef: any, data: any) => {
+    const clean = (obj: any): any => {
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (obj instanceof Date) return obj;
+      if (obj && typeof obj === 'object' && (obj.constructor?.name === 'FieldValue' || '_methodName' in obj)) return obj;
+      
+      const newObj: any = Array.isArray(obj) ? [] : {};
+      Object.keys(obj).forEach(key => {
+        if (obj[key] !== undefined) {
+          const cleanedVal = clean(obj[key]);
+          if (cleanedVal !== undefined) newObj[key] = cleanedVal;
+        }
+      });
+      return newObj;
+    };
+
+    try {
+      const cleanedData = clean(data);
+      await updateDoc(docRef, cleanedData);
+    } catch (error: any) {
+      if (error.code === 'not-found' || error.message?.includes('No document to update')) {
+        console.warn("Document not found for update, probably deleted:", docRef.id);
+        return;
+      }
+      console.error("Firestore update error:", error);
+    }
+  };
+
   const startOnlineMatch = async () => {
     setIsWaiting(true);
     
@@ -403,10 +431,10 @@ export default function ChessGame() {
             setGameId(specificRoomId);
             setActiveGameId(specificRoomId);
             setMySymbol('b');
-            await updateDoc(docRef, {
+            await safeUpdateDoc(docRef, {
               status: 'playing',
               playerO: userId,
-              playerOName: username,
+              playerOName: username || 'Guest',
               players: [data.playerX, userId],
               updatedAt: serverTimestamp()
             });
@@ -453,10 +481,10 @@ export default function ChessGame() {
       setGameId(matchToJoin.id);
       setActiveGameId(matchToJoin.id);
       setMySymbol('b');
-      await updateDoc(doc(db, 'games', matchToJoin.id), {
+      await safeUpdateDoc(doc(db, 'games', matchToJoin.id), {
         status: 'playing',
         playerO: userId,
-        playerOName: username,
+        playerOName: username || 'Guest',
         players: [matchToJoin.playerX, userId],
         updatedAt: serverTimestamp(),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -515,6 +543,8 @@ export default function ChessGame() {
       setGameId(newCode);
       setActiveGameId(newCode);
       setMySymbol('w');
+      // Sync URL
+      navigate(`/chessgame/online?roomId=${newCode}`, { replace: true });
     }
   };
 
@@ -630,7 +660,7 @@ export default function ChessGame() {
   const handleKickPlayer = async () => {
     if (gameId && mySymbol === 'w') {
        try {
-         await updateDoc(doc(db, 'games', gameId), {
+         await safeUpdateDoc(doc(db, 'games', gameId), {
            playerO: null,
            playerOName: null,
            players: [userId], 
@@ -709,12 +739,12 @@ export default function ChessGame() {
         }));
         setHistory(plainHistory);
         // Fire and forget Firestore update
-        updateDoc(doc(db, 'games', gameId), {
+        safeUpdateDoc(doc(db, 'games', gameId), {
            fen: gameCopy.fen(),
            turn: gameCopy.turn(),
            history: plainHistory,
            updatedAt: serverTimestamp()
-        }).catch(e => console.error("Firebase sync error:", e));
+        });
      }
 
      return true;
@@ -793,7 +823,7 @@ export default function ChessGame() {
     try {
       setShowGameOverModal(true);
       if (mode === 'computer') setIsGameStarted(false);
-      await updateDoc(doc(db, 'games', gameId), {
+      await safeUpdateDoc(doc(db, 'games', gameId), {
         fen: 'start',
         history: [],
         turn: 'w',
@@ -814,7 +844,7 @@ export default function ChessGame() {
         const data = snap.data();
         if (data.status === 'playing' || data.status === 'waiting') {
            // Swap colors conceptually without breaking player identity variables!
-           await updateDoc(doc(db, 'games', gameId), {
+           await safeUpdateDoc(doc(db, 'games', gameId), {
               hostColor: data.hostColor === 'b' ? 'w' : 'b'
            });
         }
