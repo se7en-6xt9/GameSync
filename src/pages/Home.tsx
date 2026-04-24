@@ -33,19 +33,10 @@ export default function Home() {
           const q = query(gamesRef, where('players', 'array-contains', userId));
           const snapshot = await getDocs(q);
           
-          const getMillis = (val: any) => {
-            if (!val) return 0;
-            if (typeof val.toMillis === 'function') return val.toMillis();
-            if (typeof val === 'number') return val;
-            if (val.seconds) return val.seconds * 1000;
-            if (val instanceof Date) return val.getTime();
-            return 0;
-          };
-
           let active = snapshot.docs
             .map(d => ({ id: d.id, ...(d.data() as any) }))
             .filter((g: any) => g.status === 'playing' || g.status === 'waiting')
-            .sort((a: any, b: any) => getMillis(b.updatedAt) - getMillis(a.updatedAt));
+            .sort((a: any, b: any) => b.updatedAt?.toMillis() - a.updatedAt?.toMillis());
 
           // Deduplicate visibly: Keep only the ONE most recent session per mode type!
           const uniqueDict = new Map();

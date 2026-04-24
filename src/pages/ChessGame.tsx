@@ -568,7 +568,7 @@ export default function ChessGame() {
         }
 
         if (data.status === 'playing') setIsWaiting(false);
-        setOpponentName(mySymbol === 'w' ? data.playerOName || (mode === 'computer' ? 'AI' : 'Waiting...') : data.playerXName || 'Opponent');
+        setOpponentName(mySymbol === 'w' ? data.playerOName || 'Waiting...' : data.playerXName || 'Opponent');
       }
     });
 
@@ -685,7 +685,7 @@ export default function ChessGame() {
      if (gameCopy.isGameOver()) playSound('victory');
 
      if (gameId) {
-        const newHistory = gameCopy.history({ verbose: true });
+        const newHistory = gameCopy.history();
         setHistory(newHistory);
         // Fire and forget Firestore update
         updateDoc(doc(db, 'games', gameId), {
@@ -1021,9 +1021,9 @@ export default function ChessGame() {
              </div>
           </div>
 
-           <div className="w-full flex items-center justify-center relative my-0 sm:my-4 flex-shrink-0">
+           <div className="w-full flex items-center justify-center relative my-0 sm:my-4">
              <div 
-               className="w-full max-w-full sm:w-[400px] md:w-[500px] aspect-square rounded-none sm:rounded-md overflow-hidden sm:ring-4 ring-black/40 relative z-30 bg-[#333] flex flex-shrink-0"
+               className="w-full max-w-full sm:max-w-[400px] md:max-w-[500px] aspect-square rounded-none sm:rounded-md overflow-hidden sm:ring-4 ring-black/40 relative z-30 bg-[#333] flex"
              >
                <div className="w-full h-full grid grid-cols-8 grid-rows-8">
                   {(() => {
@@ -1245,8 +1245,8 @@ export default function ChessGame() {
                        history.map((m, i) => (
                           <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-white/5 text-[10px] text-white/80 font-mono">
                              <span className="opacity-40">{i+1}.</span>
-                             <span className="font-bold">{typeof m === 'string' ? m : (m?.san || '??')}</span>
-                             <span className="opacity-40 text-[8px] uppercase">{(typeof m === 'string' ? (i % 2 === 0 ? 'w' : 'b') : m?.color) === 'w' ? 'White' : 'Black'}</span>
+                             <span className="font-bold">{m.san}</span>
+                             <span className="opacity-40 text-[8px] uppercase">{m.color === 'w' ? 'White' : 'Black'}</span>
                           </div>
                        ))
                     )}

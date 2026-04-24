@@ -62,38 +62,6 @@ export default function LudoGame() {
   };
   const activeColors = gameDoc?.ludoState?.activeColors || ['red', 'green', 'yellow', 'blue'];
 
-  // --- ONLINE SYNC ---
-  useEffect(() => {
-    if (!activeGameId || !userId) return;
-
-    const unsub = onSnapshot(doc(db, 'games', activeGameId), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.gameType === 'ludo') {
-           setGameDoc({ id: docSnap.id, ...data });
-           
-           // If we're a player in this game, ensure we're connected
-           if (data.mode === 'online' && !data.players?.includes(userId)) {
-              if (data.status === 'waiting' && data.players?.length < (data.maxPlayers || 4)) {
-                 updateDoc(doc(db, 'games', docSnap.id), {
-                    players: [...(data.players || []), userId],
-                    [`playerDetails.${userId}`]: {
-                       name: username,
-                       color: null,
-                       isReady: false
-                    }
-                 });
-              } else {
-                 // Might be full or game already playing
-              }
-           }
-        }
-      }
-    });
-
-    return () => unsub();
-  }, [activeGameId, userId, username]);
-
 
   const getPathIndex = (color: string, pos: number) => {
      if (pos < 1 || pos > 52) return -1;
@@ -310,28 +278,13 @@ export default function LudoGame() {
            setActiveGameId(null);
         }
 
-        // If we have roomId but no activeGameId, find it
-        let currentActiveId = activeGameId;
-        if (!currentActiveId && mode === 'online' && roomId) {
-           const q = query(collection(db, 'games'), where('roomId', '==', roomId), where('gameType', '==', 'ludo'));
-           const snap = await getDocs(q);
-           if (!snap.empty) {
-              currentActiveId = snap.docs[0].id;
-              setActiveGameId(currentActiveId);
-           } else {
-              alert("Room not found!");
-              navigate('/');
-              return;
-           }
-        }
-
-        if (currentActiveId) {
-          const docRef = doc(db, 'games', currentActiveId);
+        if (activeGameId && searchParams.get('clearOld') !== 'true') {
+          const docRef = doc(db, 'games', activeGameId);
           const snap = await getDoc(docRef);
           if (snap.exists()) {
              const data = snap.data();
              if (data.status !== 'finished' && data.gameType === 'ludo') {
-                setGameDoc({ id: currentActiveId, ...data });
+                setGameDoc({ id: activeGameId, ...data });
                 setIsInitializingGame(false);
                 return;
              }
@@ -397,14 +350,14 @@ export default function LudoGame() {
 
   // Online connection logic
   useEffect(() => {
-    if (!gameDoc || mode !== 'online' || !userId || !gameDoc.id) return;
+    if (!gameDoc || mode !== 'online' || !userId) return;
     
     const players = gameDoc.players || [];
     const details = gameDoc.playerDetails || {};
     
     // Add player to game if not present and room not full
     if (!players.includes(userId)) {
-       if (gameDoc.status === 'waiting' && players.length < (gameDoc.maxPlayers || 4)) {
+       if (players.length < gameDoc.maxPlayers) {
          updateDoc(doc(db, 'games', gameDoc.id), {
             players: [...players, userId],
             [`playerDetails.${userId}`]: {
@@ -412,10 +365,10 @@ export default function LudoGame() {
                color: null,
                isReady: false
             }
-         }).catch(console.error);
+         });
        }
     }
-  }, [gameDoc, userId, mode, username]);
+  }, [gameDoc, userId, mode]);
 
   const selectColor = async (colorId: string) => {
     if (mode === 'online' && gameDoc) {
