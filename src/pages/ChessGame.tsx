@@ -61,7 +61,7 @@ export default function ChessGame() {
   
   const [game, setGame] = useState(new Chess());
   const [fen, setFen] = useState(game.fen());
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [gameId, setGameId] = useState<string | null>(null);
   
   const [isWaiting, setIsWaiting] = useState(false);
@@ -269,20 +269,32 @@ export default function ChessGame() {
         return;
     }
 
-    const initializeGame = async () => {
-      isInitializing.current = true;
-      setIsInitializingGame(true);
-      console.log("Starting Chess Initialization:", { mode, userId, activeGameId });
+      const initializeGame = async () => {
+        if (isInitializing.current) return;
+        isInitializing.current = true;
+        setIsInitializingGame(true);
+        console.log("Starting Chess Initialization:", { mode, userId, activeGameId });
+        
+        const roomIdFromUrl = searchParams.get('roomId');
 
-      try {
-        // Clear if requested
-        if (activeGameId && searchParams.get('clearOld') === 'true') {
-           try { await deleteDoc(doc(db, 'games', activeGameId)); } catch(e) {}
-           setActiveGameId(null);
-        }
+        try {
+          // Clear if requested
+          if (activeGameId && searchParams.get('clearOld') === 'true') {
+             try { await deleteDoc(doc(db, 'games', activeGameId)); } catch(e) {}
+             setActiveGameId(null);
+          }
 
-        // Resume if exists
-        if (activeGameId && searchParams.get('clearOld') !== 'true') {
+          // Check if joining SPECIFIC room (prioritize)
+          if (roomIdFromUrl) {
+            const gameDoc = await getDoc(doc(db, 'games', roomIdFromUrl));
+            if (gameDoc.exists() && gameDoc.data().mode === 'pvp-online' && gameDoc.data().gameType === 'chess') {
+               startOnlineMatch();
+               return;
+            }
+          }
+
+          // Resume if exists
+          if (activeGameId && searchParams.get('clearOld') !== 'true') {
           const docRef = doc(db, 'games', activeGameId);
           const snap = await getDoc(docRef);
           if (snap.exists()) {
@@ -524,11 +536,14 @@ export default function ChessGame() {
         }
 
         // Dynamically update symbol and names
-        if (mode === 'online' && !data.players.includes(userId)) {
-           alert("You have been kicked from the room by the Admin.");
-           setActiveGameId(null);
-           navigate('/');
-           return;
+        if (data.status !== 'waiting' && !data.players.includes(userId)) {
+           // Wait a bit longer or check if we just joined (re-joining)
+           if (activeGameId !== gameId) {
+              alert("You have been kicked from the room by the Admin.");
+              setActiveGameId(null);
+              navigate('/');
+              return;
+           }
         }
 
         // Use hostColor instead of physically swapping playerX and playerO to prevent Name Swapping issues
@@ -577,7 +592,7 @@ export default function ChessGame() {
        const messagesRef = collection(db, 'games', gameId, 'chat');
        const qMessages = query(messagesRef, orderBy('timestamp', 'asc'));
        unsubChat = onSnapshot(qMessages, (snap) => {
-         setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+         setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
        });
     }
 
@@ -685,13 +700,17 @@ export default function ChessGame() {
      if (gameCopy.isGameOver()) playSound('victory');
 
      if (gameId) {
-        const newHistory = gameCopy.history({ verbose: true });
-        setHistory(newHistory);
+        const vHistory = gameCopy.history({ verbose: true });
+        const plainHistory = vHistory.map(m => ({
+           color: m.color, from: m.from, to: m.to, flags: m.flags, piece: m.piece,
+           san: m.san, lan: m.lan, before: m.before, after: m.after
+        }));
+        setHistory(plainHistory);
         // Fire and forget Firestore update
         updateDoc(doc(db, 'games', gameId), {
            fen: gameCopy.fen(),
            turn: gameCopy.turn(),
-           history: newHistory,
+           history: plainHistory,
            updatedAt: serverTimestamp()
         }).catch(e => console.error("Firebase sync error:", e));
      }
@@ -968,10 +987,10 @@ export default function ChessGame() {
             </div>
           </div>
 
-          <div className={cn(
-            "w-full max-w-[600px] flex flex-col items-center justify-center p-0 sm:p-6 rounded-none sm:rounded-[2.5rem] relative shadow-2xl backdrop-blur-2xl border-x-0 sm:border border-[var(--color-glass-border)] shrink-0",
-             boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
-          )}>
+            <div className={cn(
+              "w-full max-w-3xl flex flex-col items-center justify-center p-0 lg:p-6 rounded-none lg:rounded-[2.5rem] relative shadow-2xl backdrop-blur-2xl border-x-0 lg:border border-[var(--color-glass-border)] shrink-0",
+               boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
+            )}>
             
             <AnimatePresence>
               {isGameOver && showGameOverModal && (
@@ -1021,9 +1040,9 @@ export default function ChessGame() {
              </div>
           </div>
 
-           <div className="w-full flex items-center justify-center relative my-0 sm:my-4 flex-shrink-0">
+           <div className="w-full aspect-square flex items-center justify-center relative my-0 sm:my-4 flex-shrink-0">
              <div 
-               className="w-full max-w-full sm:w-[400px] md:w-[500px] aspect-square rounded-none sm:rounded-md overflow-hidden sm:ring-4 ring-black/40 relative z-30 bg-[#333] flex flex-shrink-0"
+               className="w-full h-full rounded-none sm:rounded-md overflow-hidden sm:ring-4 ring-black/40 relative z-30 bg-[#333] flex flex-shrink-0"
              >
                <div className="w-full h-full grid grid-cols-8 grid-rows-8">
                   {(() => {
@@ -1239,17 +1258,17 @@ export default function ChessGame() {
               <div className="pt-4 border-t border-white/5">
                  <p className="text-[10px] text-blue-200/30 font-black uppercase tracking-[0.2em] mb-4">Move History</p>
                  <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar space-y-1">
-                    {history.length === 0 ? (
-                       <p className="text-xs text-white/20 italic">No moves yet</p>
-                    ) : (
-                       history.map((m, i) => (
-                          <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-white/5 text-[10px] text-white/80 font-mono">
-                             <span className="opacity-40">{i+1}.</span>
-                             <span className="font-bold">{typeof m === 'string' ? m : (m?.san || '??')}</span>
-                             <span className="opacity-40 text-[8px] uppercase">{(typeof m === 'string' ? (i % 2 === 0 ? 'w' : 'b') : m?.color) === 'w' ? 'White' : 'Black'}</span>
-                          </div>
-                       ))
-                    )}
+                     {history.length === 0 ? (
+                        <p className="text-xs text-white/20 italic">No moves yet</p>
+                     ) : (
+                        history.map((m: any, i: number) => (
+                           <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-white/5 text-[10px] text-white/80 font-mono">
+                              <span className="opacity-40">{i+1}.</span>
+                              <span className="font-bold">{typeof m === 'string' ? m : (m?.san || '??')}</span>
+                              <span className="opacity-40 text-[8px] uppercase">{(typeof m === 'string' ? (i % 2 === 0 ? 'w' : 'b') : m?.color) === 'w' ? 'White' : 'Black'}</span>
+                           </div>
+                        ))
+                     )}
                  </div>
               </div>
            </div>

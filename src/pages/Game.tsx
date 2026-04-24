@@ -15,6 +15,10 @@ export default function Game() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { userId, username, activeGameId, setActiveGameId } = useUserStore();
+  
+  if (!mode || !userId) {
+     return <div className="min-h-screen flex items-center justify-center text-white">Loading...</div>;
+  }
 
   const [board, setBoard] = useState<Player[]>(Array(9).fill(null));
   const [currentTurn, setCurrentTurn] = useState<'X' | 'O'>('X');
@@ -51,31 +55,43 @@ export default function Game() {
     }
     
     // Resume flow: if we navigated here, but we already have an active game for this mode
-    const initializeGame = async () => {
-      if (isInitializing.current) return;
-      isInitializing.current = true;
+      const initializeGame = async () => {
+        if (isInitializing.current) return;
+        isInitializing.current = true;
+        
+        const roomIdFromUrl = searchParams.get('roomId');
 
-      // First, handle Force-Clear if "?clearOld=true"
-      if (searchParams.get('clearOld') === 'true') {
-         // wipe out uncompleted session for this user + mode explicitly
-         try {
-           const specificGamesRef = collection(db, 'games');
-           const delQuery = query(specificGamesRef, where('players', 'array-contains', userId));
-           const snaps = await getDocs(delQuery);
-           const promises = snaps.docs
-               .filter(d => {
-                 const data = d.data();
-                 const checkingOnline = mode === 'online' ? data.mode === 'pvp-online' : data.mode === mode;
-                 return checkingOnline && (data.status === 'playing' || data.status === 'waiting');
-               })
-               .map(d => deleteDoc(doc(db, 'games', d.id)));
-           await Promise.all(promises);
-         } catch(e) {
-           console.error("Failed to delete ghosts:", e);
-         }
-      } else {
-        // First, check if we're trying to resume a game by activeGameId
-        if (activeGameId) {
+        // First, handle Force-Clear if "?clearOld=true"
+        if (searchParams.get('clearOld') === 'true') {
+           // wipe out uncompleted session for this user + mode explicitly
+           try {
+             const specificGamesRef = collection(db, 'games');
+             const delQuery = query(specificGamesRef, where('players', 'array-contains', userId));
+             const snaps = await getDocs(delQuery);
+             const promises = snaps.docs
+                 .filter(d => {
+                   const data = d.data();
+                   const checkingOnline = mode === 'online' ? data.mode === 'pvp-online' : data.mode === mode;
+                   return checkingOnline && (data.status === 'playing' || data.status === 'waiting');
+                 })
+                 .map(d => deleteDoc(doc(db, 'games', d.id)));
+             await Promise.all(promises);
+           } catch(e) {
+             console.error("Failed to delete ghosts:", e);
+           }
+        } else {
+          // Check if we are joining a SPECIFIC room (prioritize this over resume)
+          if (roomIdFromUrl) {
+             const gameDoc = await getDoc(doc(db, 'games', roomIdFromUrl));
+             if (gameDoc.exists() && gameDoc.data().mode === 'pvp-online') {
+                // If it exists, we skip the normal "reconnect" to old game logic and just enter THIS room
+                startOnlineMatch(); 
+                return;
+             }
+          }
+
+          // First, check if we're trying to resume a game by activeGameId
+          if (activeGameId) {
           const gameDoc = await getDoc(doc(db, 'games', activeGameId));
           if (gameDoc.exists()) {
              const data = gameDoc.data();
@@ -302,16 +318,14 @@ export default function Game() {
         const data = docSnap.data();
         
         if (data.status !== 'waiting' && !data.players.includes(userId)) {
-           // Small grace period for Firestore sync
-           setTimeout(async () => {
-              const freshSnap = await getDoc(doc(db, 'games', gameId));
-              if (freshSnap.exists() && !freshSnap.data()?.players?.includes(userId)) {
-                 alert("You have been kicked from the room by the Admin.");
-                 setActiveGameId(null);
-                 navigate('/');
-              }
-           }, 2000);
-           return;
+           // Wait a bit longer or check if we just joined
+           const isJustJoined = activeGameId === gameId;
+           if (!isJustJoined) {
+              alert("You have been kicked from the room by the Admin.");
+              setActiveGameId(null);
+              navigate('/');
+              return;
+           }
         }
 
         setBoard(data.board);
@@ -626,13 +640,13 @@ export default function Game() {
 
         {/* Maximize the Board UI Container */}
         <div className={cn(
-          "w-full max-w-[600px] flex flex-col items-center justify-center p-0 sm:p-6 rounded-none sm:rounded-[2rem] relative shadow-2xl backdrop-blur-xl border-x-0 sm:border border-[var(--color-glass-border)] shrink-0",
+          "w-full max-w-3xl flex flex-col items-center justify-center p-0 lg:p-6 rounded-none lg:rounded-[2.5rem] relative shadow-2xl backdrop-blur-2xl border-x-0 lg:border border-[var(--color-glass-border)] shrink-0",
            boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
         )}>
           
-          <div className="w-full flex items-center justify-center relative my-0 sm:my-2 min-h-0">
+          <div className="w-full aspect-square flex items-center justify-center relative my-0 sm:my-2 min-h-0">
             {/* The Actual Grid */}
-            <div className="grid grid-cols-3 gap-2 w-full aspect-square">
+            <div className="grid grid-cols-3 gap-2 w-full h-full">
               {board.map((cell, idx) => (
                 <motion.button
                   key={idx}

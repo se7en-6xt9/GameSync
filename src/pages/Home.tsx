@@ -98,8 +98,8 @@ export default function Home() {
     }
 
     // Default (Tic-Tac-Toe)
-    if (currentMode === 'pvp-online') {
-      navigate(`/game/online`);
+    if (currentMode === 'pvp-online' || currentMode === 'online') {
+      navigate(`/game/online?roomId=${gameId}`);
     } else {
       navigate(`/game/${currentMode}`);
     }
