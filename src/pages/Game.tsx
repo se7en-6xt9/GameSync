@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, MessageSquare, Send, RotateCcw, Palette, Users, X, Copy, Check, UserMinus } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, RotateCcw, Palette, Users, X, Copy, Check, UserMinus, Trash2 } from 'lucide-react';
 import { cn } from '../components/Navbar';
 import { useUserStore } from '../store/userStore';
 import { db } from '../firebase';
@@ -180,7 +180,8 @@ export default function Game() {
               playerO: userId,
               playerOName: username,
               players: [data.playerX, userId],
-              updatedAt: serverTimestamp()
+              updatedAt: serverTimestamp(),
+              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
             });
             setIsWaiting(false);
             return;
@@ -502,7 +503,8 @@ export default function Game() {
       senderId: userId,
       senderName: username,
       text: chatMessage.trim(),
-      timestamp: serverTimestamp()
+      timestamp: serverTimestamp(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
     });
     setChatMessage('');
   };
@@ -563,15 +565,33 @@ export default function Game() {
         
         {/* Top Floating Controls */}
         <div className="w-full max-w-[600px] flex justify-between items-center mb-2 sm:mb-4 px-2">
-          <button
-            onClick={() => {
-              setActiveGameId(null);
-              navigate('/');
-            }}
-            className="flex items-center gap-1.5 text-xs sm:text-sm text-purple-200 hover:text-white transition-colors font-medium border border-purple-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm shadow-[0_0_15px_rgba(255,0,0,0.1)] hover:border-red-400/50 hover:text-red-300"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Exit
-          </button>
+          <div className="flex gap-2">
+             <button
+               onClick={() => {
+                 setActiveGameId(null);
+                 navigate('/');
+               }}
+               className="flex items-center gap-1.5 text-xs sm:text-sm text-purple-200 hover:text-white transition-colors font-medium border border-purple-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)] backdrop-blur-sm shadow-[0_0_15px_rgba(255,0,0,0.1)] hover:border-red-400/50 hover:text-red-300"
+             >
+               <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Exit
+             </button>
+             {(gameId && (mySymbol === 'X' || mode !== 'online')) && (
+                <button
+                   onClick={async () => {
+                       if (gameId) {
+                           try {
+                               await deleteDoc(doc(db, 'games', gameId));
+                               setActiveGameId(null);
+                           } catch(e) {}
+                       }
+                       navigate('/');
+                   }}
+                   className="flex items-center gap-1.5 text-xs text-red-400 border border-red-500/30 hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-colors"
+                >
+                   <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+             )}
+          </div>
           
           <div className="flex gap-2">
             {mode === 'computer' && (
