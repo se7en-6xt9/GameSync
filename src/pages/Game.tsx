@@ -301,10 +301,16 @@ export default function Game() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         
-        if (!data.players.includes(userId)) {
-           alert("You have been kicked from the room by the Admin.");
-           setActiveGameId(null);
-           navigate('/');
+        if (data.status !== 'waiting' && !data.players.includes(userId)) {
+           // Small grace period for Firestore sync
+           setTimeout(async () => {
+              const freshSnap = await getDoc(doc(db, 'games', gameId));
+              if (freshSnap.exists() && !freshSnap.data()?.players?.includes(userId)) {
+                 alert("You have been kicked from the room by the Admin.");
+                 setActiveGameId(null);
+                 navigate('/');
+              }
+           }, 2000);
            return;
         }
 
