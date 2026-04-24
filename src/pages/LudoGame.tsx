@@ -151,14 +151,18 @@ export default function LudoGame() {
        if (diceState !== 'rolling') {
           setDiceState('rolling');
           playSound('roll');
+          setCurrentDiceValue(Math.floor(Math.random() * 6) + 1);
        }
     } else if (mode === 'online' && !ludoState.isRolling) {
        if (diceState === 'rolling') {
+          // If server stopped rolling but we are still rolling locally: stop and show the number
           setDiceState('rolled');
           setCurrentDiceValue(ludoState.diceValue || 1);
        } else if (activePhase === 'awaiting_roll') {
+          // If it's time to roll, dice should be idle
           setDiceState('idle');
        } else if (activePhase === 'awaiting_move') {
+          // If someone has to move, dice shows the value
           setDiceState('rolled');
           setCurrentDiceValue(ludoState.diceValue || 1);
        }
@@ -206,17 +210,22 @@ export default function LudoGame() {
      if (diceState === 'rolling' || activePhase !== 'awaiting_roll') return;
      
      // Guard for Online Turn
-     if (mode === 'online' && gameDoc?.playerDetails?.[userId as string]?.color !== activeTurn) return;
+     const isMyTurn = mode !== 'online' || gameDoc?.playerDetails?.[userId as string]?.color === activeTurn;
+     if (!isMyTurn) return;
 
      if (mode === 'online' && gameDoc?.id) {
-        await safeUpdateDoc(doc(db, 'games', gameDoc.id), { 'ludoState.isRolling': true });
+        await safeUpdateDoc(doc(db, 'games', gameDoc.id), { 
+           'ludoState.isRolling': true,
+           'ludoState.diceValue': 0 // reset visually for others
+        });
      } else {
         setDiceState('rolling');
      }
      
      playSound('roll');
      
-     setTimeout(() => {
+     // The Roller calculates the result after a visual delay
+     setTimeout(async () => {
         const finalValue = Math.floor(Math.random() * 6) + 1;
         setCurrentDiceValue(finalValue);
         
@@ -233,16 +242,28 @@ export default function LudoGame() {
            turn: activeTurn,
            diceValue: finalValue,
            isRolling: false,
-           tokens: activeTokens,
            phase: hasValidMove ? 'awaiting_move' : 'awaiting_roll'
         };
 
         if (!hasValidMove) {
-           // Skip turn
+           // Skip turn after showing result for a bit
+           if (mode === 'online' && gameDoc?.id) {
+              await safeUpdateDoc(doc(db, 'games', gameDoc.id), { 
+                 'ludoState.diceValue': finalValue,
+                 'ludoState.isRolling': false,
+                 'ludoState.phase': 'awaiting_roll' // Stay in roll phase but turn will change
+              });
+           }
+           
            setTimeout(() => {
               setDiceState('idle'); 
               const nextIdx = (activeColors.indexOf(activeTurn) + 1) % activeColors.length;
-              const skippedState = { ...newLudoState, turn: activeColors[nextIdx] };
+              const skippedState = { 
+                 ...newLudoState, 
+                 turn: activeColors[nextIdx],
+                 phase: 'awaiting_roll',
+                 diceValue: finalValue // preserve for history maybe
+              };
               
               setGameDoc((prev: any) => ({ ...prev, ludoState: skippedState }));
               if (gameDoc?.id) {
@@ -257,7 +278,7 @@ export default function LudoGame() {
               safeUpdateDoc(doc(db, 'games', gameDoc.id), { ludoState: newLudoState });
            }
         }
-     }, 800);
+     }, 1000); // 1s roll sync window
   };
 
   const handleTokenClick = (color: string, tokenIndex: number, isBotClick = false) => {
@@ -807,6 +828,45 @@ export default function LudoGame() {
 
        {/* MAIN BOARD AREA */}
        <div className="flex-1 flex flex-col items-center justify-center pointer-events-none px-0 w-full overflow-hidden">
+          
+          {/* REAL-TIME STATUS BANNER */}
+          <div className="w-full max-w-sm mb-6 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 flex items-center justify-between shadow-2xl pointer-events-auto">
+             <div className="flex items-center gap-4">
+                <div className={cn("w-14 h-14 rounded-full border-4 shadow-xl transition-all duration-500", 
+                   activeTurn === 'red' ? 'bg-red-500 border-red-500/50 shadow-red-500/20' : 
+                   activeTurn === 'green' ? 'bg-green-500 border-green-500/50 shadow-green-500/20' : 
+                   activeTurn === 'yellow' ? 'bg-yellow-500 border-yellow-500/50 shadow-yellow-500/20' : 
+                   'bg-blue-500 border-blue-500/50 shadow-blue-500/20',
+                   activePhase === 'awaiting_roll' && 'animate-pulse scale-105'
+                )} />
+                <div>
+                   <h4 className="text-white font-black text-sm uppercase tracking-wider mb-0.5">
+                      {gameDoc?.playerDetails?.[Object.keys(gameDoc?.playerDetails || {}).find(k => gameDoc.playerDetails[k].color === activeTurn) || '']?.name || activeTurn}'s Turn
+                   </h4>
+                   <div className="flex items-center gap-2">
+                      <p className={cn("text-[10px] font-black uppercase tracking-widest", 
+                         activePhase === 'awaiting_roll' ? 'text-yellow-400' : 'text-green-400'
+                      )}>
+                         {activePhase === 'awaiting_roll' ? 'Waiting for roll' : 'Picking a token'}
+                      </p>
+                   </div>
+                </div>
+             </div>
+
+             <div className="flex flex-col items-end gap-1">
+                {gameDoc?.ludoState?.isRolling ? (
+                   <div className="flex items-center gap-2 bg-yellow-500/20 px-3 py-1.5 rounded-xl border border-yellow-500/30">
+                      <RefreshCw className="w-3 h-3 text-yellow-400 animate-spin" />
+                      <span className="text-yellow-400 text-[10px] font-black uppercase tracking-widest">Rolling...</span>
+                   </div>
+                ) : gameDoc?.ludoState?.diceValue > 0 && (
+                   <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-2xl border border-white/10 shadow-inner">
+                      <span className="text-white/40 text-[8px] font-black uppercase tracking-tighter">Result</span>
+                      <span className="text-white font-black text-2xl leading-none">{gameDoc.ludoState.diceValue}</span>
+                   </div>
+                )}
+             </div>
+          </div>
           <div className="w-full max-w-3xl aspect-square bg-[#ececec] sm:rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden flex relative pointer-events-auto border-0 sm:border-8 border-[#2d3748]">
              {/* Simple Ludo 15x15 CSS Grid Implementation */}
              <div className="w-full h-full grid" style={{ gridTemplateColumns: 'repeat(15, 1fr)', gridTemplateRows: 'repeat(15, 1fr)' }}>
