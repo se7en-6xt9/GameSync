@@ -171,19 +171,13 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="text-sm font-semibold mb-1">
-                  Vs. {
-                    game.gameType === 'ludo' 
-                    ? (Object.values(game.playerDetails || {}).filter((p: any) => p.name !== username).map((p: any) => p.name).join(', ') || 'Unknown / AI')
-                    : (game.playerX === userId ? (game.playerOName || 'Unknown / AI') : (game.playerXName || 'Unknown / AI'))
-                  }
+                  Vs. {game.playerX === userId ? (game.playerOName || 'Unknown / AI') : (game.playerXName || 'Unknown / AI')}
                 </div>
                 <div className="text-xs text-purple-300">
                   {game.status === 'playing' ? (
                     `Turn: ${
                        game.gameType === 'chess' 
                          ? (game.turn === (game.playerX === userId ? 'w' : 'b') ? "Yours!" : "Waiting...")
-                         : game.gameType === 'ludo'
-                         ? (game.ludoState?.turn === game.playerDetails?.[userId as string]?.color ? "Yours!" : "Waiting...")
                          : (game.currentTurn === (game.playerX === userId ? 'X' : 'O') ? "Yours!" : "Waiting...")
                     }`
                   ) : "Waiting for player..."}
@@ -220,41 +214,11 @@ export default function Home() {
       {/* All Games Grid */}
       <div className="flex items-center gap-2 mb-6 mt-4">
         <Gamepad2 className="w-6 h-6 text-fuchsia-400" />
-        <h2 className="text-3xl font-black bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">Multiplayer Arcade</h2>
+        <h2 className="text-3xl font-black bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">Platform Games</h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-        {/* Ludo Card */}
-        <motion.div
-          whileHover={{ y: -5 }}
-          onClick={() => handleOpenGameLobby('/ludo')}
-          className="group relative cursor-pointer rounded-3xl overflow-hidden bg-black/40 border border-[var(--color-glass-border)] aspect-[4/3] shadow-2xl"
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-red-900/40 to-yellow-900/90 z-10" />
-          <div className="absolute inset-x-0 bottom-0 p-6 z-20">
-            <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors">Ludo King</h3>
-            <p className="text-purple-200 text-sm mb-4">The ultimate board game, play with up to 4 friends.</p>
-            <div className="flex items-center gap-4">
-              <span className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-sm font-medium text-white flex items-center gap-2 transition-colors">
-                <Play className="w-4 h-4" /> Play Now
-              </span>
-              <span className="flex items-center gap-1 text-xs text-purple-300">
-                <Users className="w-3 h-3" /> 2-4 Players
-              </span>
-            </div>
-          </div>
-          
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-30 group-hover:opacity-50 transition-opacity duration-500 z-0 flex items-center justify-center">
-             <div className="w-32 h-32 rotate-12 scale-110 bg-white shadow-2xl overflow-hidden grid grid-cols-2 p-1 gap-1">
-                 <div className="bg-red-500 rounded-sm"></div>
-                 <div className="bg-green-500 rounded-sm"></div>
-                 <div className="bg-blue-500 rounded-sm"></div>
-                 <div className="bg-yellow-500 rounded-sm"></div>
-             </div>
-          </div>
-        </motion.div>
-
+        
         {/* Tic-Tac-Toe Card */}
         <motion.div
           whileHover={{ y: -5 }}
@@ -284,6 +248,36 @@ export default function Home() {
                     {i === 5 && <span className="text-4xl text-fuchsia-400 font-bold">O</span>}
                  </div>
                ))}
+             </div>
+          </div>
+        </motion.div>
+
+        {/* Ludo Card */}
+        <motion.div
+          whileHover={{ y: -5 }}
+          onClick={() => handleOpenGameLobby('/ludo')}
+          className="group relative cursor-pointer rounded-3xl overflow-hidden bg-black/40 border border-[var(--color-glass-border)] aspect-[4/3] shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-red-900/40 to-yellow-900/90 z-10" />
+          <div className="absolute inset-x-0 bottom-0 p-6 z-20">
+            <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors">Ludo King</h3>
+            <p className="text-purple-200 text-sm mb-4">The ultimate board game, play with up to 4 friends.</p>
+            <div className="flex items-center gap-4">
+              <span className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-sm font-medium text-white flex items-center gap-2 transition-colors">
+                <Play className="w-4 h-4" /> Play Now
+              </span>
+              <span className="flex items-center gap-1 text-xs text-purple-300">
+                <Users className="w-3 h-3" /> 2-4 Players
+              </span>
+            </div>
+          </div>
+          
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-30 group-hover:opacity-50 transition-opacity duration-500 z-0 flex items-center justify-center">
+             <div className="w-32 h-32 rotate-12 scale-110 bg-white shadow-2xl overflow-hidden grid grid-cols-2 p-1 gap-1">
+                 <div className="bg-red-500 rounded-sm"></div>
+                 <div className="bg-green-500 rounded-sm"></div>
+                 <div className="bg-blue-500 rounded-sm"></div>
+                 <div className="bg-yellow-500 rounded-sm"></div>
              </div>
           </div>
         </motion.div>
