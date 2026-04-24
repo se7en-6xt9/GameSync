@@ -290,6 +290,8 @@ export default function Game() {
 
       const docRef = doc(gamesRef, newCode);
       await setDoc(docRef, {
+        gameType: 'tictactoe',
+        roomId: newCode,
         mode: 'pvp-online',
         status: 'waiting',
         playerX: userId,

@@ -338,6 +338,80 @@ export default function LudoGame() {
           }
         }
 
+        // Clean up old sessions
+        try {
+            const specificGamesRef = collection(db, 'games');
+            const delQuery = query(specificGamesRef, where('players', 'array-contains', userId));
+            const snaps = await getDocs(delQuery);
+            const promises = snaps.docs
+                .filter(d => d.data().mode === 'online' && d.data().gameType === 'ludo' && (d.data().status === 'playing' || d.data().status === 'waiting'))
+                .map(d => deleteDoc(doc(db, 'games', d.id)));
+            await Promise.all(promises);
+        } catch(e) {}
+
+        if (mode === 'online' && !roomId) {
+            // Find existing waiting game
+            const gamesRef = collection(db, 'games');
+            const q = query(gamesRef, where('status', '==', 'waiting'), where('mode', '==', 'online'), where('gameType', '==', 'ludo'));
+            const snapshot = await getDocs(q);
+            
+            let matchToJoin: any = null;
+            snapshot.forEach(d => {
+                if (!matchToJoin && d.data().hostId !== userId && (d.data().players?.length || 0) < (d.data().maxPlayers || 4)) {
+                   matchToJoin = { id: d.id, ...d.data() };
+                }
+            });
+
+            if (matchToJoin) {
+                setActiveGameId(matchToJoin.id);
+                setGameDoc(matchToJoin);
+                setIsInitializingGame(false);
+                return;
+            } else {
+                // Create new with 4-Digit Unique ID
+                let newCode = "";
+                let isUnique = false;
+                let attempts = 0;
+                while (!isUnique && attempts < 10) {
+                    newCode = Math.floor(1000 + Math.random() * 9000).toString();
+                    const checkQ = query(collection(db, 'games'), where('roomId', '==', newCode));
+                    const checkSnap = await getDocs(checkQ);
+                    if (checkSnap.empty) isUnique = true;
+                    attempts++;
+                }
+                
+                const hostColor = 'red';
+                const newLudoState = {
+                    turn: hostColor,
+                    phase: 'awaiting_roll',
+                    diceValue: 1,
+                    activeColors: ['red', 'green', 'yellow', 'blue'],
+                    tokens: { red: [0,0,0,0], green: [0,0,0,0], yellow: [0,0,0,0], blue: [0,0,0,0] }
+                };
+
+                const docRef = await addDoc(collection(db, 'games'), {
+                    gameType: 'ludo',
+                    roomId: newCode,
+                    mode: 'online',
+                    status: 'waiting',
+                    hostId: userId,
+                    players: [userId],
+                    maxPlayers: requestedPlayers,
+                    playerDetails: {
+                        [userId]: { name: username || 'Guest', color: null, isReady: false }
+                    },
+                    ludoState: newLudoState,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                });
+                setActiveGameId(docRef.id);
+                setGameDoc({ id: docRef.id, ludoState: newLudoState, mode: 'online', roomId: newCode });
+                setIsInitializingGame(false);
+                return;
+            }
+        }
+
         if (mode !== 'online') {
             const hostColor = searchParams.get('color') || 'red';
             const getOpposite = (c: string) => c === 'red' ? 'yellow' : c === 'yellow' ? 'red' : c === 'green' ? 'blue' : 'green';

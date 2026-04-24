@@ -308,6 +308,7 @@ export default function ChessGame() {
               if (gameData.fen && gameData.fen !== 'start') resGame.load(gameData.fen);
               setGame(resGame);
               setFen(resGame.fen());
+              setHistory(gameData.history || []);
               
               setIsInitializingGame(false);
               return;
@@ -493,6 +494,7 @@ export default function ChessGame() {
       const docRef = doc(gamesRef, newCode);
       await setDoc(docRef, {
         gameType: 'chess',
+        roomId: newCode,
         mode: 'pvp-online',
         status: 'waiting',
         playerX: userId,
@@ -860,11 +862,11 @@ export default function ChessGame() {
     <div 
       ref={constraintsRef}
       className={cn(
-        "w-full max-w-screen-2xl mx-auto h-[100dvh] flex flex-col items-center justify-center gap-2 p-0 sm:p-4 overflow-hidden",
+        "w-full max-w-screen-2xl mx-auto h-[100dvh] flex flex-col items-center justify-center gap-0 sm:gap-2 p-0 sm:p-4 overflow-hidden",
         isEmbedded ? "pt-12" : "pt-20 lg:pt-12", "font-sans"
       )}
     >
-      <div className="w-full flex-1 flex flex-col lg:flex-row items-center lg:items-center justify-center gap-4 lg:gap-12 min-h-0 px-4">
+      <div className="w-full flex-1 flex flex-col lg:flex-row items-center lg:items-center justify-center gap-4 lg:gap-12 min-h-0 px-0 sm:px-4">
         
         {/* Left Side: Exit/Theme (Visible only on LG+, moved from top) */}
         <div className="hidden lg:flex flex-col gap-4 w-48 shrink-0">
@@ -938,10 +940,10 @@ export default function ChessGame() {
         </div>
 
         {/* Center/Board Area */}
-        <div className="flex flex-col items-center min-w-0">
+        <div className="w-full flex flex-col items-center min-w-0 flex-shrink-0">
           
           {/* Mobile-only Top Row */}
-          <div className="w-full max-w-[600px] flex lg:hidden justify-between items-center mb-2 px-2">
+          <div className="w-full flex lg:hidden justify-between items-center mb-2 px-6">
             <button
               onClick={() => {
                 setActiveGameId(null);
@@ -969,28 +971,13 @@ export default function ChessGame() {
                      <Trash2 className="w-4 h-4" /> Destroy
                   </button>
                )}
-               {!isWaiting && history.length === 0 && (
-                  <button
-                     onClick={handleSwapSides}
-                     className="flex items-center gap-1.5 text-xs text-blue-200 border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)]"
-                  >
-                     <RotateCcw className="w-4 h-4" /> Swap
-                  </button>
-               )}
-
-               <button
-                 onClick={() => setBoardTheme(prev => prev === 'neon' ? 'cyberpunk' : (prev === 'cyberpunk' ? 'classic' : (prev === 'classic' ? 'original' : 'neon')))}
-                 className="flex items-center gap-1.5 text-xs text-blue-200 border border-blue-500/30 rounded-full px-3 py-1.5 bg-[var(--color-glass-surface)]"
-               >
-                 <Palette className="w-4 h-4" /> <span className="capitalize">{boardTheme}</span>
-               </button>
             </div>
           </div>
 
-            <div className={cn(
-              "w-full max-w-3xl flex flex-col items-center justify-center p-0 lg:p-6 rounded-none lg:rounded-[2.5rem] relative shadow-2xl backdrop-blur-2xl border-x-0 lg:border border-[var(--color-glass-border)] shrink-0",
-               boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
-            )}>
+          <div className={cn(
+            "w-full lg:max-w-3xl flex flex-col items-center justify-center p-0 lg:p-6 rounded-none lg:rounded-[2.5rem] relative shadow-2xl backdrop-blur-2xl border-x-0 lg:border border-[var(--color-glass-border)] shrink-0 overflow-visible",
+             boardTheme === 'cyberpunk' ? 'bg-slate-900/80' : 'bg-[var(--color-glass-surface)]'
+          )}>
             
             <AnimatePresence>
               {isGameOver && showGameOverModal && (
@@ -1033,17 +1020,14 @@ export default function ChessGame() {
             )}
 
             {/* Header specific to Chess */}
-          <div className="w-full flex justify-between items-center mb-2 px-4 sm:px-1">
-             <div className="text-white font-bold">{opponentName}</div>
-             <div className={cn("px-3 py-1 rounded-full text-xs font-bold", game.turn() === 'b' ? 'bg-blue-500 text-white' : 'bg-black/50 text-gray-400')}>
-                {game.turn() === 'b' ? 'Thinking...' : 'Waiting'}
-             </div>
-          </div>
+            <div className="w-full flex justify-between items-center mb-2 px-6 lg:px-1 h-8 shrink-0">
+               <div className="text-white font-bold text-sm">{opponentName}</div>
+               <div className={cn("px-3 py-1 rounded-full text-[10px] font-bold", game.turn() === 'b' ? 'bg-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-black/50 text-gray-400')}>
+                  {game.turn() === 'b' ? 'THINKING' : 'WAITING'}
+               </div>
+            </div>
 
-           <div className="w-full aspect-square flex items-center justify-center relative my-0 sm:my-4 flex-shrink-0">
-             <div 
-               className="w-full h-full rounded-none sm:rounded-md overflow-hidden sm:ring-4 ring-black/40 relative z-30 bg-[#333] flex flex-shrink-0"
-             >
+            <div className="w-full aspect-square bg-[#333] sm:rounded-md shadow-2xl overflow-hidden flex relative shrink-0 border-0 lg:border-4 border-black/40">
                <div className="w-full h-full grid grid-cols-8 grid-rows-8">
                   {(() => {
                     const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -1056,7 +1040,7 @@ export default function ChessGame() {
                     return (
                        <>
                           {/* 1. Render all the squares (background + highlights) */}
-                          {displayRanks.map((rank, rankIndex) => (
+                          {displayRanks.map((rank, rankIndex) => 
                              displayFiles.map((file, fileIndex) => {
                                 const square = `${file}${rank}`;
                                 const piece: any = game.get(square as any); // just for hasEnemy highlight detection
@@ -1084,7 +1068,7 @@ export default function ChessGame() {
                                   </div>
                                 );
                              })
-                          ))}
+                          )}
                           {/* 2. Render Animated Pieces absolutely tracking grid coordinates */}
                           {animatedPieces.map((p) => {
                              const fileIndex = displayFiles.indexOf(p.square[0]);
@@ -1231,7 +1215,6 @@ export default function ChessGame() {
                 </div>
              )}
           </div>
-        </div>
 
         {/* Right Sidebar for PC (Optional space for more stats/info) */}
         <div className="hidden xl:flex flex-col gap-4 w-64 shrink-0">

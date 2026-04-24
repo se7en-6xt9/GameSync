@@ -118,7 +118,7 @@ export default function Home() {
     }
   };
 
-  const handleJoinSubmit = (e: React.FormEvent) => {
+  const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) {
        setShowEmbeddedJoinModal(false);
@@ -128,8 +128,30 @@ export default function Home() {
     const code = joinCode.trim();
     if (code.length !== 4) return;
     
-    // Auto Navigate to online handler with Code in searchParams
-    navigate(`/game/online?roomId=${code}`);
+    try {
+      const q = query(collection(db, 'games'), where('roomId', '==', code));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const gameData = snap.docs[0].data();
+        const gameType = gameData.gameType || 'tictactoe';
+        
+        if (gameType === 'chess') {
+          navigate(`/chessgame/online?roomId=${code}`);
+        } else if (gameType === 'ludo') {
+          navigate(`/ludogame/online?roomId=${code}`);
+        } else {
+          navigate(`/game/online?roomId=${code}`);
+        }
+      } else {
+        // Fallback or alert
+        alert("Room not found!");
+      }
+    } catch (err) {
+      console.error("Error joining:", err);
+      navigate(`/game/online?roomId=${code}`);
+    }
+
     setShowEmbeddedJoinModal(false);
     setJoinCode('');
   };

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useUserStore } from '../store/userStore';
 import { Gamepad2, User, KeyRound, X, ArrowRight, Download, Smartphone, Share } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -116,7 +118,7 @@ export default function Navbar() {
     return null;
   }
 
-  const handleJoinSubmit = (e: React.FormEvent) => {
+  const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) {
        setShowJoinModal(false);
@@ -126,8 +128,29 @@ export default function Navbar() {
     const code = joinCode.trim();
     if (code.length !== 4) return;
     
-    // Auto Navigate to online handler with Code in searchParams
-    navigate(`/game/online?roomId=${code}`);
+    try {
+      const q = query(collection(db, 'games'), where('roomId', '==', code));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const gameData = snap.docs[0].data();
+        const gameType = gameData.gameType || 'tictactoe';
+        
+        if (gameType === 'chess') {
+          navigate(`/chessgame/online?roomId=${code}`);
+        } else if (gameType === 'ludo') {
+          navigate(`/ludogame/online?roomId=${code}`);
+        } else {
+          navigate(`/game/online?roomId=${code}`);
+        }
+      } else {
+        alert("Room not found!");
+      }
+    } catch (err) {
+      console.error("Error joining:", err);
+      navigate(`/game/online?roomId=${code}`);
+    }
+
     setShowJoinModal(false);
     setJoinCode('');
   };
