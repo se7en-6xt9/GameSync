@@ -7,8 +7,6 @@ import TicTacToeLobby from './pages/TicTacToeLobby';
 import Game from './pages/Game';
 import ChessLobby from './pages/ChessLobby';
 import ChessGame from './pages/ChessGame';
-import LudoLobby from './pages/LudoLobby';
-import LudoGame from './pages/LudoGame';
 import Profile from './pages/Profile';
 
 export default function App() {
@@ -27,11 +25,9 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/tictactoe" element={<TicTacToeLobby />} />
         <Route path="/chess" element={<ChessLobby />} />
-        <Route path="/ludo" element={<LudoLobby />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/game/:mode" element={<Game />} />
         <Route path="/chessgame/:mode" element={<ChessGame />} />
-        <Route path="/ludogame/:mode" element={<LudoGame />} />
       </Routes>
     </BrowserRouter>
   );

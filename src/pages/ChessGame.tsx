@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, MessageSquare, Send, RotateCcw, Palette, Users, X, Copy, Check, UserMinus, Crown, Shield, ChevronRight, Trash2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, RotateCcw, Palette, Users, X, Copy, Check, UserMinus, Crown, Shield, ChevronRight } from 'lucide-react';
 import { cn } from '../components/Navbar';
 import { useUserStore } from '../store/userStore';
 import { db } from '../firebase';
@@ -604,8 +604,7 @@ export default function ChessGame() {
         senderId: userId,
         senderName: username,
         text: messageText,
-        timestamp: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        timestamp: serverTimestamp()
       });
     } catch(err) { console.error('Error sending message:', err) }
   };
@@ -934,22 +933,6 @@ export default function ChessGame() {
             </button>
             
             <div className="flex gap-2">
-               {(gameId && (mySymbol === 'w' || mode !== 'online')) && (
-                  <button
-                     onClick={async () => {
-                         if (gameId) {
-                             try {
-                                 await deleteDoc(doc(db, 'games', gameId));
-                                 setActiveGameId(null);
-                             } catch(e) {}
-                         }
-                         navigate('/');
-                     }}
-                     className="flex items-center gap-1.5 text-xs text-red-400 border border-red-500/30 hover:bg-red-500/20 rounded-full px-3 py-1.5 transition-colors"
-                  >
-                     <Trash2 className="w-4 h-4" /> Destroy
-                  </button>
-               )}
                {!isWaiting && history.length === 0 && (
                   <button
                      onClick={handleSwapSides}
