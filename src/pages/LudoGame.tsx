@@ -55,12 +55,17 @@ export default function LudoGame() {
   };
   
   // Ludo Game Phase and Logic State
-  const activeTurn = gameDoc?.ludoState?.turn || 'red';
-  const activePhase = gameDoc?.ludoState?.phase || 'awaiting_roll'; 
-  const activeTokens = gameDoc?.ludoState?.tokens || {
-     red: [0,0,0,0], green: [0,0,0,0], blue: [0,0,0,0], yellow: [0,0,0,0]
+  const ludoState = gameDoc?.ludoState || {};
+  const activeTurn = ludoState.turn || 'red';
+  const activePhase = ludoState.phase || 'awaiting_roll'; 
+  const tokensFromDoc = ludoState.tokens || {};
+  const activeTokens = {
+     red: tokensFromDoc.red || [0,0,0,0],
+     green: tokensFromDoc.green || [0,0,0,0],
+     blue: tokensFromDoc.blue || [0,0,0,0],
+     yellow: tokensFromDoc.yellow || [0,0,0,0]
   };
-  const activeColors = gameDoc?.ludoState?.activeColors || ['red', 'green', 'yellow', 'blue'];
+  const activeColors = ludoState.activeColors || ['red', 'green', 'yellow', 'blue'];
 
   const safeUpdateDoc = async (docRef: any, data: any) => {
     const clean = (obj: any): any => {
@@ -140,6 +145,36 @@ export default function LudoGame() {
     };
   }, [activeGameId, userId, username]);
 
+  // --- DICE ANIMATION SYNC ---
+  useEffect(() => {
+    if (mode === 'online' && ludoState.isRolling) {
+       if (diceState !== 'rolling') {
+          setDiceState('rolling');
+          playSound('roll');
+       }
+    } else if (mode === 'online' && !ludoState.isRolling) {
+       if (diceState === 'rolling') {
+          setDiceState('rolled');
+          setCurrentDiceValue(ludoState.diceValue || 1);
+       } else if (activePhase === 'awaiting_roll') {
+          setDiceState('idle');
+       } else if (activePhase === 'awaiting_move') {
+          setDiceState('rolled');
+          setCurrentDiceValue(ludoState.diceValue || 1);
+       }
+    }
+  }, [ludoState.isRolling, ludoState.diceValue, activePhase, mode]);
+
+  // Rolling Visuals Interval
+  useEffect(() => {
+    if (diceState === 'rolling') {
+       const interval = setInterval(() => {
+          setCurrentDiceValue(Math.floor(Math.random() * 6) + 1);
+       }, 100);
+       return () => clearInterval(interval);
+    }
+  }, [diceState]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeGameId) return;
@@ -167,21 +202,23 @@ export default function LudoGame() {
   // Safe squares on the 0-51 absolute track
   const SAFE_PATH_INDEXES = [0, 8, 13, 21, 26, 34, 39, 47];
 
-  const rollDice = () => {
+  const rollDice = async () => {
      if (diceState === 'rolling' || activePhase !== 'awaiting_roll') return;
-     setDiceState('rolling');
+     
+     // Guard for Online Turn
+     if (mode === 'online' && gameDoc?.playerDetails?.[userId as string]?.color !== activeTurn) return;
+
+     if (mode === 'online' && gameDoc?.id) {
+        await safeUpdateDoc(doc(db, 'games', gameDoc.id), { 'ludoState.isRolling': true });
+     } else {
+        setDiceState('rolling');
+     }
+     
      playSound('roll');
      
-     // Randomize visuals for 0.8 seconds
-     const interval = setInterval(() => {
-        setCurrentDiceValue(Math.floor(Math.random() * 6) + 1);
-     }, 100);
-
      setTimeout(() => {
-        clearInterval(interval);
         const finalValue = Math.floor(Math.random() * 6) + 1;
         setCurrentDiceValue(finalValue);
-        setDiceState('rolled');
         
         // Evaluate valid moves
         const currentPlayerTokens = activeTokens[activeTurn as keyof typeof activeTokens] || [0,0,0,0];
@@ -195,6 +232,7 @@ export default function LudoGame() {
            ...(gameDoc?.ludoState || {}),
            turn: activeTurn,
            diceValue: finalValue,
+           isRolling: false,
            tokens: activeTokens,
            phase: hasValidMove ? 'awaiting_move' : 'awaiting_roll'
         };
@@ -202,7 +240,7 @@ export default function LudoGame() {
         if (!hasValidMove) {
            // Skip turn
            setTimeout(() => {
-              setDiceState('idle'); // Send to next player's base physically
+              setDiceState('idle'); 
               const nextIdx = (activeColors.indexOf(activeTurn) + 1) % activeColors.length;
               const skippedState = { ...newLudoState, turn: activeColors[nextIdx] };
               
@@ -210,18 +248,16 @@ export default function LudoGame() {
               if (gameDoc?.id) {
                   safeUpdateDoc(doc(db, 'games', gameDoc.id), { ludoState: skippedState });
               }
-           }, 1500); // Wait 1.5s in center reading the invalid dice result before moving token
+           }, 1500);
         } else {
-           // Immediately render locally what happened
+           if (mode !== 'online') setDiceState('rolled');
            setGameDoc((prev: any) => ({ ...prev, ludoState: newLudoState }));
 
-           // Save to Firebase
            if (gameDoc?.id) {
               safeUpdateDoc(doc(db, 'games', gameDoc.id), { ludoState: newLudoState });
            }
         }
-
-     }, 800); // 0.8s roll
+     }, 800);
   };
 
   const handleTokenClick = (color: string, tokenIndex: number, isBotClick = false) => {
@@ -519,13 +555,14 @@ export default function LudoGame() {
         });
 
         // Determine first turn randomly or by rule (e.g., Red starts)
-        const activeColors = Object.values(gameDoc.playerDetails as Record<string, any>).map(p => p.color).filter(Boolean);
-        const startingTurn = activeColors[0] || 'red';
+        const playerColors = Object.values(gameDoc.playerDetails as Record<string, any>).map(p => p.color).filter(Boolean);
+        const startingTurn = playerColors[0] || 'red';
 
         await safeUpdateDoc(doc(db, 'games', gameDoc.id), {
            status: 'playing',
            'ludoState.turn': startingTurn,
-           'ludoState.tokens': initTokens
+           'ludoState.tokens': initTokens,
+           'ludoState.activeColors': playerColors
         });
      }
   };
@@ -876,7 +913,7 @@ export default function LudoGame() {
                 
                 {/* Active Tokens Render on the Path Grid */}
                 {activeColors.map((color: string) =>
-                   activeTokens[color as keyof typeof activeTokens].map((pos: number, t: number) => {
+                   (activeTokens[color as keyof typeof activeTokens] || []).map((pos: number, t: number) => {
                       if (pos === 0 || pos > 58) return null; // Already rendered in base or won
                       const coords = getCoordinatesForPosition(color, pos);
                       if (!coords) return null;
