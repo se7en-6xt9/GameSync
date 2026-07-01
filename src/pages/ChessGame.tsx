@@ -277,9 +277,16 @@ export default function ChessGame() {
         
         const roomIdFromUrl = searchParams.get('roomId');
 
+        const isClearOld = searchParams.get('clearOld') === 'true';
+        if (isClearOld) {
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete('clearOld');
+          setSearchParams(newParams, { replace: true });
+        }
+
         try {
           // Clear if requested
-          if (activeGameId && searchParams.get('clearOld') === 'true') {
+          if (activeGameId && isClearOld) {
              try { await deleteDoc(doc(db, 'games', activeGameId)); } catch(e) {}
              setActiveGameId(null);
           }

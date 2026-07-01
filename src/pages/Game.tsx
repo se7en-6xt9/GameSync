@@ -61,8 +61,15 @@ export default function Game() {
         
         const roomIdFromUrl = searchParams.get('roomId');
 
+        const isClearOld = searchParams.get('clearOld') === 'true';
+        if (isClearOld) {
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete('clearOld');
+          setSearchParams(newParams, { replace: true });
+        }
+
         // First, handle Force-Clear if "?clearOld=true"
-        if (searchParams.get('clearOld') === 'true') {
+        if (isClearOld) {
            // wipe out uncompleted session for this user + mode explicitly
            try {
              const specificGamesRef = collection(db, 'games');

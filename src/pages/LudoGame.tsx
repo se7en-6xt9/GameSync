@@ -424,8 +424,16 @@ export default function LudoGame() {
     const initializeGame = async () => {
       isInitializing.current = true;
       setIsInitializingGame(true);
+      
+      const isClearOld = searchParams.get('clearOld') === 'true';
+      if (isClearOld) {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('clearOld');
+        setSearchParams(newParams, { replace: true });
+      }
+
       try {
-        if (activeGameId && searchParams.get('clearOld') === 'true') {
+        if (activeGameId && isClearOld) {
            try { await deleteDoc(doc(db, 'games', activeGameId)); } catch(e) {}
            setActiveGameId(null);
         }

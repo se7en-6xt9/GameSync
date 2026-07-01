@@ -196,7 +196,42 @@ export default function RajaMantriGame() {
     }
   };
 
+  // --- Persist Local Offline Game ---
+  useEffect(() => {
+    if (localGame && urlMode !== 'online') {
+      sessionStorage.setItem('rajamantri_local_state', JSON.stringify({
+        game: localGame,
+        passIndex: localPassIndex,
+        revealed: localRevealedCurrent
+      }));
+    }
+  }, [localGame, localPassIndex, localRevealedCurrent, urlMode]);
+
   const setupOfflineGame = () => {
+    const isClearOld = searchParams.get('clearOld') === 'true';
+    if (isClearOld) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('clearOld');
+      setSearchParams(newParams, { replace: true });
+    } else {
+      // Try to load from session storage
+      const saved = sessionStorage.getItem('rajamantri_local_state');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.game) {
+            setLocalGame(parsed.game);
+            setLocalPassIndex(parsed.passIndex || 0);
+            setLocalRevealedCurrent(parsed.revealed || false);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.error('Failed to parse local rajamantri state', e);
+        }
+      }
+    }
+
     const isPvp = searchParams.get('mode') === 'pvp-local';
     const totalRds = parseInt(searchParams.get('rounds') || '4', 10);
     
