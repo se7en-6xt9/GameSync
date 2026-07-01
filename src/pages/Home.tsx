@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { useUserStore } from '../store/userStore';
-import { Gamepad2, Play, Users, Clock, Trash2, KeyRound, ArrowRight, X } from 'lucide-react';
+import { Gamepad2, Play, Users, Clock, Trash2, KeyRound, ArrowRight, X, Crown } from 'lucide-react';
 import { cn } from '../components/Navbar';
 
 export default function Home() {
@@ -97,6 +97,16 @@ export default function Home() {
        return;
     }
 
+    // Raja Mantri
+    if (gameType === 'rajamantri') {
+       if (currentMode === 'pvp-online' || currentMode === 'online') {
+         navigate(`/rajamantrigame/online?roomId=${gameId}`);
+       } else {
+         navigate(`/rajamantrigame/${currentMode}`);
+       }
+       return;
+    }
+
     // Default (Tic-Tac-Toe)
     if (currentMode === 'pvp-online' || currentMode === 'online') {
       navigate(`/game/online?roomId=${gameId}`);
@@ -140,6 +150,8 @@ export default function Home() {
           navigate(`/chessgame/online?roomId=${code}`);
         } else if (gameType === 'ludo') {
           navigate(`/ludogame/online?roomId=${code}`);
+        } else if (gameType === 'rajamantri') {
+          navigate(`/rajamantrigame/online?roomId=${code}`);
         } else {
           navigate(`/game/online?roomId=${code}`);
         }
@@ -350,6 +362,34 @@ export default function Home() {
              </div>
           </div>
         </motion.div>
+
+        {/* Raja Mantri Card */}
+        <motion.div
+          whileHover={{ y: -5 }}
+          onClick={() => handleOpenGameLobby('/rajamantri')}
+          className="group relative cursor-pointer rounded-3xl overflow-hidden bg-black/40 border border-[var(--color-glass-border)] aspect-[4/3] shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-amber-950/40 to-rose-950/90 z-10" />
+          <div className="absolute inset-x-0 bottom-0 p-6 z-20">
+            <h3 className="text-2xl font-bold text-white mb-2 group-hover:text-amber-400 transition-colors">Raja Mantri Chor Sipahi</h3>
+            <p className="text-purple-200 text-sm mb-4">A social party game of roles, deduction, and point-stealing.</p>
+            <div className="flex items-center gap-4">
+              <span className="px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-sm font-medium text-white flex items-center gap-2 transition-colors">
+                <Play className="w-4 h-4" /> Play Now
+              </span>
+              <span className="flex items-center gap-1 text-xs text-purple-300">
+                <Users className="w-3 h-3" /> 4 Players / AI
+              </span>
+            </div>
+          </div>
+          
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-35 group-hover:opacity-55 transition-opacity duration-500 z-0 flex items-center justify-center">
+             <div className="w-24 h-24 rotate-12 scale-110 bg-gradient-to-tr from-amber-500 to-rose-600 rounded-2xl shadow-2xl flex items-center justify-center">
+                 <Crown className="w-12 h-12 text-white animate-pulse" />
+             </div>
+          </div>
+        </motion.div>
+
         <div className="rounded-3xl border border-dashed border-purple-500/30 flex flex-col items-center justify-center p-8 aspect-[4/3] bg-purple-900/10">
            <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center mb-4">
              <Gamepad2 className="w-8 h-8 text-purple-400/50" />
